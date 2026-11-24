@@ -1,0 +1,41 @@
+module github.com/nickytonline/homelab-k8s/tools/ptun
+
+go 1.27.1
+
+require (
+	connectrpc.com/connect v1.21.1
+	github.com/go-jose/go-jose/v3 v3.0.5
+	github.com/pomerium/pomerium/pkg/grpc/config v0.34.1
+	github.com/pomerium/sdk-go v0.0.10-0.20261110022632-86aa3a97e480
+	github.com/spf13/cobra v1.10.2
+)
+
+require (
+	cel.dev/expr v0.25.3 // indirect
+	github.com/Masterminds/semver/v3 v3.5.0 // indirect
+	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
+	github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 // indirect
+	github.com/envoyproxy/go-control-plane/envoy v1.40.0 // indirect
+	github.com/envoyproxy/protoc-gen-validate v1.3.3 // indirect
+	github.com/google/gnostic v0.7.2-0.20250814192921-e0e09f706281 // indirect
+	github.com/google/gnostic-models v0.7.1 // indirect
+	github.com/google/uuid v1.6.0 // indirect
+	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/mattn/go-colorable v0.1.16 // indirect
+	github.com/mattn/go-isatty v0.0.24 // indirect
+	github.com/oapi-codegen/runtime v1.8.0 // indirect
+	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
+	github.com/pomerium/pomerium/pkg/grpc/databroker v0.34.1-0.20261110012034-bfab9866f123 // indirect
+	github.com/rs/zerolog v1.35.1 // indirect
+	github.com/spf13/pflag v1.0.9 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
+	golang.org/x/crypto v0.58.0 // indirect
+	golang.org/x/net v0.62.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20261026165753-2ffab32bce7e // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20261026165753-2ffab32bce7e // indirect
+	google.golang.org/grpc v1.86.0-dev // indirect
+	google.golang.org/protobuf v1.36.12 // indirect
+)
