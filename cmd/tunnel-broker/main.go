@@ -31,7 +31,11 @@ func main() {
 // staticAuth is the DEV_AUTH_EMAIL authenticator (loopback-only local testing).
 type staticAuth string
 
-func (s staticAuth) Email(*http.Request) (string, error) { return string(s), nil }
+// Identify implements broker.Authenticator. The subject is derived from the email,
+// so --stable URLs differ from the deployed broker's (no real IdP sub here).
+func (s staticAuth) Identify(*http.Request) (broker.Caller, error) {
+	return broker.Caller{Email: string(s), Subject: "dev:" + string(s)}, nil
+}
 
 func env(key, def string) string {
 	if v := os.Getenv(key); v != "" {

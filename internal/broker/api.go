@@ -9,9 +9,15 @@ import (
 	sdk "github.com/pomerium/sdk-go"
 )
 
-// Authenticator returns the caller's email from a request.
+// Caller is the authenticated user behind a request.
+type Caller struct {
+	Email   string
+	Subject string // IdP subject (JWT sub); the source of the stable id
+}
+
+// Authenticator identifies the caller of a request.
 type Authenticator interface {
-	Email(r *http.Request) (string, error)
+	Identify(r *http.Request) (Caller, error)
 }
 
 // JWTAuthenticator verifies X-Pomerium-Jwt-Assertion against Pomerium's JWKS.
@@ -32,20 +38,24 @@ func NewJWTAuthenticator(jwksURL, audience string) (*JWTAuthenticator, error) {
 	return &JWTAuthenticator{v: v}, nil
 }
 
-// Email implements Authenticator.
-func (a *JWTAuthenticator) Email(r *http.Request) (string, error) {
+// Identify implements Authenticator.
+func (a *JWTAuthenticator) Identify(r *http.Request) (Caller, error) {
 	raw := r.Header.Get("X-Pomerium-Jwt-Assertion")
 	if raw == "" {
-		return "", errors.New("missing assertion")
+		return Caller{}, errors.New("missing assertion")
 	}
 	id, err := a.v.GetIdentity(r.Context(), raw)
 	if err != nil {
-		return "", err
+		return Caller{}, err
 	}
 	if id.Email == "" {
-		return "", errors.New("assertion has no email claim")
+		return Caller{}, errors.New("assertion has no email claim")
 	}
-	return id.Email, nil
+	sub := id.Subject
+	if sub == "" {
+		sub = id.User
+	}
+	return Caller{Email: id.Email, Subject: sub}, nil
 }
 
 // API is the HTTP handler.
@@ -66,32 +76,37 @@ func NewAPI(m *Manager, auth Authenticator, log *slog.Logger) http.Handler {
 	return mux
 }
 
-type handler func(w http.ResponseWriter, r *http.Request, email string)
+type handler func(w http.ResponseWriter, r *http.Request, c Caller)
 
 func (a *API) authed(h handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		email, err := a.auth.Email(r)
+		c, err := a.auth.Identify(r)
 		if err != nil {
 			a.log.Warn("auth rejected", "path", r.URL.Path, "err", err)
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 			return
 		}
-		h(w, r, email)
+		h(w, r, c)
 	}
 }
 
-func (a *API) create(w http.ResponseWriter, r *http.Request, email string) {
+func (a *API) create(w http.ResponseWriter, r *http.Request, c Caller) {
 	var req struct {
 		Target  string `json:"target"`
 		Public  bool   `json:"public"`
 		MCP     bool   `json:"mcp"`
 		MCPPath string `json:"mcp_path"`
+		Stable  bool   `json:"stable"`
+		Name    string `json:"name"`
 	}
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid JSON body"})
 		return
 	}
-	t, err := a.m.CreateWith(r.Context(), email, CreateRequest{Target: req.Target, Public: req.Public, MCP: req.MCP, MCPPath: req.MCPPath})
+	t, err := a.m.CreateWith(r.Context(), c.Email, CreateRequest{
+		Target: req.Target, Public: req.Public, MCP: req.MCP, MCPPath: req.MCPPath,
+		Stable: req.Stable, Name: req.Name, Subject: c.Subject,
+	})
 	if err != nil {
 		a.fail(w, err)
 		return
@@ -99,8 +114,8 @@ func (a *API) create(w http.ResponseWriter, r *http.Request, email string) {
 	writeJSON(w, http.StatusCreated, t)
 }
 
-func (a *API) heartbeat(w http.ResponseWriter, r *http.Request, email string) {
-	t, err := a.m.Heartbeat(r.PathValue("id"), email)
+func (a *API) heartbeat(w http.ResponseWriter, r *http.Request, c Caller) {
+	t, err := a.m.Heartbeat(r.PathValue("id"), c.Email)
 	if err != nil {
 		a.fail(w, err)
 		return
@@ -108,8 +123,8 @@ func (a *API) heartbeat(w http.ResponseWriter, r *http.Request, email string) {
 	writeJSON(w, http.StatusOK, t)
 }
 
-func (a *API) delete(w http.ResponseWriter, r *http.Request, email string) {
-	if err := a.m.Delete(r.Context(), r.PathValue("id"), email); err != nil {
+func (a *API) delete(w http.ResponseWriter, r *http.Request, c Caller) {
+	if err := a.m.Delete(r.Context(), r.PathValue("id"), c.Email); err != nil {
 		a.fail(w, err)
 		return
 	}
@@ -125,6 +140,8 @@ func (a *API) fail(w http.ResponseWriter, err error) {
 		code, msg = http.StatusForbidden, err.Error()
 	case errors.Is(err, ErrPublicDisabled), errors.Is(err, ErrMCPDisabled):
 		code, msg = http.StatusForbidden, err.Error()
+	case errors.Is(err, ErrConflict):
+		code, msg = http.StatusConflict, err.Error()
 	case errors.Is(err, ErrLimit):
 		code, msg = http.StatusTooManyRequests, err.Error()
 	case errors.Is(err, ErrInvalidInput):

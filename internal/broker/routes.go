@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -38,6 +39,8 @@ type RouteStore interface {
 	// Delete removes the route, then its policy (either id may be empty or already gone).
 	Delete(ctx context.Context, routeID, policyID string) error
 	ListManaged(ctx context.Context) ([]*configpb.Route, error)
+	// FindByFrom returns every route (managed or not) whose from URL is from.
+	FindByFrom(ctx context.Context, from string) ([]*configpb.Route, error)
 	// DeleteOrphanPolicies deletes ephemeral:* policies for which keep returns false.
 	DeleteOrphanPolicies(ctx context.Context, keep func(*configpb.Policy) bool) (int, error)
 }
@@ -240,6 +243,15 @@ func (r *Routes) DeleteOrphanPolicies(ctx context.Context, keep func(*configpb.P
 
 // ListManaged returns all routes the broker owns (prefix and marker).
 func (r *Routes) ListManaged(ctx context.Context) ([]*configpb.Route, error) {
+	return r.list(ctx, func(rt *configpb.Route) bool { return Owned(r.prefix, rt.GetName(), rt.GetDescription()) })
+}
+
+// FindByFrom returns every route whose from URL is from, whoever owns it.
+func (r *Routes) FindByFrom(ctx context.Context, from string) ([]*configpb.Route, error) {
+	return r.list(ctx, func(rt *configpb.Route) bool { return strings.EqualFold(strings.TrimSuffix(rt.GetFrom(), "/"), from) })
+}
+
+func (r *Routes) list(ctx context.Context, match func(*configpb.Route) bool) ([]*configpb.Route, error) {
 	const page = 200
 	var out []*configpb.Route
 	err := r.try(ctx, func(c routeClient) error {
@@ -251,7 +263,7 @@ func (r *Routes) ListManaged(ctx context.Context) ([]*configpb.Route, error) {
 				return err
 			}
 			for _, rt := range res.Msg.GetRoutes() {
-				if Owned(r.prefix, rt.GetName(), rt.GetDescription()) {
+				if match(rt) {
 					out = append(out, rt)
 				}
 			}

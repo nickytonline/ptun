@@ -21,6 +21,8 @@ var (
 	ErrForbidden    = errors.New("tunnel belongs to another user")
 	ErrLimit        = errors.New("tunnel limit reached")
 	ErrInvalidInput = errors.New("invalid input")
+	// ErrConflict is returned when a stable hostname is taken by another user or a non-tunnel route.
+	ErrConflict = errors.New("hostname is in use")
 	// ErrPublicDisabled is returned when public is requested but ALLOW_PUBLIC_TUNNELS is off.
 	ErrPublicDisabled = errors.New("public tunnels are disabled on this broker")
 	// ErrMCPDisabled is returned when mcp is requested but ALLOW_MCP_TUNNELS is off.
@@ -51,6 +53,7 @@ type Tunnel struct {
 	Public                   bool      `json:"public"`
 	MCP                      bool      `json:"mcp"`
 	MCPPath                  string    `json:"mcp_path,omitempty"`
+	Stable                   bool      `json:"stable"` // hostname is the same every run (--stable / --name)
 	ExpiresAt                time.Time `json:"expires_at"`
 	HeartbeatIntervalSeconds int       `json:"heartbeat_interval_seconds"`
 }
@@ -62,6 +65,8 @@ type lease struct {
 	public   bool
 	mcp      bool
 	mcpPath  string
+	hostname string
+	stable   bool
 	expires  time.Time
 }
 
@@ -75,6 +80,29 @@ type Manager struct {
 	mu     sync.Mutex
 	leases map[string]*lease
 }
+
+// ttl is the lease length for l: short for stable links (one live tunnel per
+// link, so a crashed ptun must not hold it long).
+func (m *Manager) ttl(l *lease) time.Duration {
+	if l.stable {
+		return StableTTL
+	}
+	return m.cfg.TTL
+}
+
+func (m *Manager) heartbeat(l *lease) time.Duration {
+	if l.stable {
+		return StableHeartbeatInterval
+	}
+	return m.cfg.HeartbeatInterval
+}
+
+// Stable links have one live tunnel per link, so their lease is short: a crashed
+// ptun frees its link within StableTTL (plus one sweep).
+const (
+	StableTTL               = 2 * time.Minute
+	StableHeartbeatInterval = 30 * time.Second
+)
 
 func (c Config) prefix() string {
 	if c.RoutePrefix == "" {
@@ -111,10 +139,10 @@ func ValidateTarget(target string) (string, error) {
 
 // BuildRoute builds the Pomerium route for a tunnel.
 func BuildRoute(id, email, target string, public bool, cfg Config) (*configpb.Route, error) {
-	return buildRoute(id, email, target, CreateRequest{Public: public}, cfg)
+	return buildRoute(id, email, target, Hostname(id, cfg.BaseDomain), CreateRequest{Public: public}, cfg)
 }
 
-func buildRoute(id, email, target string, req CreateRequest, cfg Config) (*configpb.Route, error) {
+func buildRoute(id, email, target, hostname string, req CreateRequest, cfg Config) (*configpb.Route, error) {
 	public := req.Public
 	ppl, err := EmailPolicy(email)
 	if err != nil {
@@ -128,11 +156,14 @@ func buildRoute(id, email, target string, req CreateRequest, cfg Config) (*confi
 	if req.MCP {
 		kind += " (MCP tunnel)"
 	}
+	if req.Stable {
+		kind += " (stable URL)"
+	}
 	desc := fmt.Sprintf("Ephemeral ptun %s for %s, %s. Do not edit.", kind, email, ManagedMarker)
 	route := &configpb.Route{
 		Name:            &name,
 		Description:     &desc,
-		From:            "https://" + Hostname(id, cfg.BaseDomain),
+		From:            "https://" + hostname,
 		To:              []string{"http://" + target},
 		AllowWebsockets: true,
 		// Lets the ptun CLI show who is visiting (--show-visitor) from X-Pomerium-Jwt-Assertion.
@@ -147,17 +178,21 @@ func buildRoute(id, email, target string, req CreateRequest, cfg Config) (*confi
 	return route, nil
 }
 
-func (m *Manager) tunnel(id, email string, public, mcp bool, mcpPath string, expires time.Time) Tunnel {
-	h := Hostname(id, m.cfg.BaseDomain)
+func (m *Manager) tunnel(id string, l *lease) Tunnel {
+	h := l.hostname
+	if h == "" {
+		h = Hostname(id, m.cfg.BaseDomain)
+	}
 	return Tunnel{
 		ID: id, URL: "https://" + h, Hostname: h,
 		SSHHost: m.cfg.SSHHost, SSHPort: m.cfg.SSHPort,
-		Email:                    email,
-		Public:                   public,
-		MCP:                      mcp,
-		MCPPath:                  mcpPath,
-		ExpiresAt:                expires,
-		HeartbeatIntervalSeconds: int(m.cfg.HeartbeatInterval / time.Second),
+		Email:                    l.email,
+		Public:                   l.public,
+		MCP:                      l.mcp,
+		MCPPath:                  l.mcpPath,
+		Stable:                   l.stable,
+		ExpiresAt:                l.expires,
+		HeartbeatIntervalSeconds: int(m.heartbeat(l) / time.Second),
 	}
 }
 
@@ -167,6 +202,9 @@ type CreateRequest struct {
 	Public  bool   // anyone with the link may open it
 	MCP     bool   // route fronts an MCP server
 	MCPPath string // MCP endpoint path; default /mcp
+	Stable  bool   // same hostname every run: <stable id> or <name>-<stable id>
+	Name    string // optional name prefix for a stable hostname; implies Stable
+	Subject string // caller's IdP subject (set by the API from the JWT, not by the client)
 }
 
 // ValidateMCPPath checks an MCP endpoint path ("" gives the default).
@@ -215,23 +253,69 @@ func (m *Manager) CreateWith(ctx context.Context, email string, req CreateReques
 	if err != nil {
 		return Tunnel{}, err
 	}
+	if req.Name != "" {
+		req.Stable = true
+		if req.Name, err = NormalizeName(req.Name); err != nil {
+			return Tunnel{}, err
+		}
+	}
+	id, err := NewID()
+	if err != nil {
+		return Tunnel{}, err
+	}
+	hostname := Hostname(id, m.cfg.BaseDomain)
+	if req.Stable {
+		if req.Subject == "" {
+			return Tunnel{}, fmt.Errorf("%w: stable URLs need the IdP subject, and the sign-in token has none", ErrInvalidInput)
+		}
+		hostname = StableHostname(req.Name, req.Subject, m.cfg.BaseDomain)
+	}
+
 	m.mu.Lock()
+	// A stable hostname has at most one live tunnel. While its lease is live (the
+	// caller's own or anyone's), another create is a conflict, like ngrok's "endpoint
+	// already online". A crashed ptun frees the link when its short stable lease runs
+	// out (StableTTL).
+	for _, ol := range m.leases {
+		if ol.hostname != hostname || !m.now().Before(ol.expires) {
+			continue
+		}
+		var err error
+		switch {
+		case ol.email != email:
+			err = fmt.Errorf("%w: %s belongs to another user", ErrConflict, hostname)
+		case ol.routeID == "":
+			err = fmt.Errorf("%w: %s is being started by another ptun right now", ErrConflict, hostname)
+		default:
+			err = fmt.Errorf("%w: %s is already live in another ptun of yours", ErrConflict, hostname)
+		}
+		m.mu.Unlock()
+		return Tunnel{}, err
+	}
 	if m.countLocked(email) >= m.cfg.MaxPerUser {
 		m.mu.Unlock()
 		return Tunnel{}, ErrLimit
 	}
-	id, err := NewID()
-	if err != nil {
-		m.mu.Unlock()
-		return Tunnel{}, err
-	}
-	// Reserve the slot before the (slow) API call so concurrent creates cannot exceed the cap.
-	expires := m.now().Add(m.cfg.TTL)
-	l := &lease{email: email, public: public, mcp: req.MCP, mcpPath: req.MCPPath, expires: expires}
+	// Reserve the slot (and the hostname) before the slow API calls so concurrent
+	// creates cannot exceed the cap or race for the same stable hostname.
+	l := &lease{email: email, public: public, mcp: req.MCP, mcpPath: req.MCPPath, hostname: hostname, stable: req.Stable}
+	l.expires = m.now().Add(m.ttl(l))
 	m.leases[id] = l
 	m.mu.Unlock()
 
-	route, err := buildRoute(id, email, target, req, m.cfg)
+	release := func() {
+		m.mu.Lock()
+		delete(m.leases, id)
+		m.mu.Unlock()
+	}
+	if req.Stable {
+		if err := m.clearHostname(ctx, hostname, email); err != nil {
+			release()
+			return Tunnel{}, err
+		}
+	}
+
+	route, err := buildRoute(id, email, target, hostname, req, m.cfg)
 	if err == nil {
 		var ppl []byte
 		if ppl, err = VisitorPolicy(email, public); err == nil {
@@ -239,13 +323,42 @@ func (m *Manager) CreateWith(ctx context.Context, email string, req CreateReques
 		}
 	}
 	if err != nil {
-		m.mu.Lock()
-		delete(m.leases, id)
-		m.mu.Unlock()
+		release()
 		return Tunnel{}, fmt.Errorf("create tunnel: %w", err)
 	}
-	m.log.Info("tunnel created", "id", id, "email", email, "route_id", l.routeID, "target", target, "public", public, "mcp", req.MCP)
-	return m.tunnel(id, email, public, req.MCP, req.MCPPath, expires), nil
+	m.log.Info("tunnel created", "id", id, "email", email, "route_id", l.routeID, "hostname", hostname, "target", target, "public", public, "mcp", req.MCP, "stable", req.Stable)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.tunnel(id, l), nil
+}
+
+// clearHostname checks Pomerium for other routes on a stable hostname that this
+// broker has no live lease for. The caller's own broker-made routes (an expired
+// lease the sweep hasn't removed yet, or another broker replica's leftovers) are
+// deleted; any other route is a conflict, so a stable name never shadows a real route.
+func (m *Manager) clearHostname(ctx context.Context, hostname, email string) error {
+	from := "https://" + hostname
+	existing, err := m.routes.FindByFrom(ctx, from)
+	if err != nil {
+		return fmt.Errorf("check %s: %w", hostname, err)
+	}
+	for _, rt := range existing {
+		_, owner, ok := IDFromRouteNameWith(m.cfg.prefix(), rt.GetName())
+		if !Owned(m.cfg.prefix(), rt.GetName(), rt.GetDescription()) || !ok || owner != email {
+			return fmt.Errorf("%w: %s is already used by another route", ErrConflict, hostname)
+		}
+	}
+	for _, rt := range existing {
+		var pid string
+		if pids := rt.GetPolicyIds(); len(pids) > 0 {
+			pid = pids[0]
+		}
+		if err := m.routes.Delete(ctx, rt.GetId(), pid); err != nil {
+			return fmt.Errorf("replace your earlier tunnel on %s: %w", hostname, err)
+		}
+		m.log.Info("replaced stale route on stable hostname", "route_id", rt.GetId(), "hostname", hostname)
+	}
+	return nil
 }
 
 func (m *Manager) countLocked(email string) int {
@@ -277,8 +390,8 @@ func (m *Manager) Heartbeat(id, email string) (Tunnel, error) {
 	if err != nil {
 		return Tunnel{}, err
 	}
-	l.expires = m.now().Add(m.cfg.TTL)
-	return m.tunnel(id, l.email, l.public, l.mcp, l.mcpPath, l.expires), nil
+	l.expires = m.now().Add(m.ttl(l))
+	return m.tunnel(id, l), nil
 }
 
 // Delete removes a tunnel and its route.
@@ -344,8 +457,11 @@ func (m *Manager) Adopt(ctx context.Context) error {
 		if _, exists := m.leases[id]; exists {
 			continue
 		}
-		l := &lease{routeID: rt.GetId(), email: email, expires: m.now().Add(m.cfg.TTL)}
+		l := &lease{routeID: rt.GetId(), email: email}
 		l.public = strings.Contains(rt.GetDescription(), "public tunnel")
+		l.stable = strings.Contains(rt.GetDescription(), "(stable URL)")
+		l.hostname = strings.TrimPrefix(rt.GetFrom(), "https://")
+		l.expires = m.now().Add(m.ttl(l))
 		if srv := rt.GetMcp().GetServer(); srv != nil {
 			l.mcp, l.mcpPath = true, srv.GetPath()
 		}

@@ -40,6 +40,8 @@ type Options struct {
 	Public      bool   // anyone with the link may open it
 	MCP         bool   // share as a remote MCP server
 	MCPPath     string // MCP endpoint path for the printed URL (default /mcp)
+	Stable      bool   // same URL every run (<id>.<domain>)
+	Name        string // same URL every run, with a name (<name>-<id>.<domain>); implies Stable
 	Quiet       bool   // no per-request log lines
 	ShowVisitor bool   // append the visitor email to log lines
 	NoCheck     bool   // skip the "is anything listening" pre-flight
@@ -102,7 +104,7 @@ func Run(ctx context.Context, o Options) (int, error) {
 	defer srv.Close()
 	proxyAddr := ln.Addr().String()
 
-	t, err := c.CreateWith(ctx, CreateParams{Target: o.Target, Public: o.Public, MCP: o.MCP, MCPPath: o.MCPPath})
+	t, err := c.CreateWith(ctx, CreateParams{Target: o.Target, Public: o.Public, MCP: o.MCP, MCPPath: o.MCPPath, Stable: o.Stable || o.Name != "", Name: o.Name})
 	if err != nil {
 		if ctx.Err() != nil {
 			return 0, nil
@@ -174,10 +176,19 @@ loop:
 			liveC = nil // a nil channel never fires again
 		case <-tick.C:
 			hctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			if err := c.Heartbeat(hctx, t.ID); err != nil {
+			err := c.Heartbeat(hctx, t.ID)
+			cancel()
+			var api *APIError
+			if t.Stable && errors.As(err, &api) && api.Status == http.StatusNotFound {
+				// The lease ran out (e.g. the laptop slept through heartbeats) and the link was freed.
+				_ = cmd.Process.Signal(syscall.SIGTERM)
+				<-done
+				fmt.Fprintf(o.Out, "✖ %s expired (no heartbeat reached the server in time, e.g. after sleep). Stopped; run ptun again to get it back.\n", t.URL)
+				return 0, nil
+			}
+			if err != nil {
 				fmt.Fprintf(o.Out, "warning: heartbeat failed: %v\n", err)
 			}
-			cancel()
 		case <-ctx.Done():
 			_ = cmd.Process.Signal(syscall.SIGTERM)
 			waitErr = <-done
@@ -231,6 +242,12 @@ func announceLive(o Options, t Tunnel) {
 		fmt.Fprintf(o.Out, "    %s%s\n", t.URL, note)
 	}
 	fmt.Fprintf(o.Out, "  Who can open it: %s\n", who)
+	if t.Stable {
+		fmt.Fprintln(o.Out, "  This link is the same every time you run this command. It only works while ptun is running.")
+		if t.Public {
+			fmt.Fprintln(o.Out, "  Heads-up: a public link that never changes can be found again by anyone who has seen it.")
+		}
+	}
 	if t.MCP {
 		fmt.Fprintln(o.Out, "  Add it to your MCP client (e.g. Claude) as a remote MCP server. It will sign you in through Pomerium.")
 	}

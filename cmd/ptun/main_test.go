@@ -27,7 +27,7 @@ func TestStartAliasAndFlags(t *testing.T) {
 	if err != nil || start.Name() != "start" {
 		t.Fatalf("start subcommand missing: %v", err)
 	}
-	for _, name := range []string{"public", "quiet", "show-visitor", "no-check", "mcp", "mcp-path"} {
+	for _, name := range []string{"public", "quiet", "show-visitor", "no-check", "mcp", "mcp-path", "stable", "name"} {
 		if root.Flags().Lookup(name) == nil || start.Flags().Lookup(name) == nil {
 			t.Errorf("flag --%s missing on root or start", name)
 		}

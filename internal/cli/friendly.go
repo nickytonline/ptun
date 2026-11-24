@@ -47,6 +47,14 @@ func FriendlyError(err error) error {
 			return errors.New("Your organization doesn't allow public links. Use ptun 3000 for a private link.")
 		case api.Status == http.StatusForbidden && strings.Contains(api.Message, "MCP tunnels are disabled"):
 			return errors.New("Your organization doesn't allow MCP links. Use ptun 3000 for a regular link.")
+		case api.Status == http.StatusConflict && strings.Contains(api.Message, "another ptun of yours"):
+			return errors.New("You already have this link running in another ptun. Stop it there (Ctrl-C) first. If that ptun crashed, the link frees itself within about 2 minutes.")
+		case api.Status == http.StatusConflict && strings.Contains(api.Message, "being started"):
+			return errors.New("Another ptun is starting this same link right now. Wait a moment and try again.")
+		case api.Status == http.StatusConflict:
+			return fmt.Errorf("That link is taken: %s. Pick another name with --name.", api.Message)
+		case api.Status == http.StatusBadRequest && strings.Contains(api.Message, "name "):
+			return errors.New("That name won't work in a web address. Use 1-32 letters, digits or hyphens, e.g. --name my-demo.")
 		case api.Status == http.StatusTooManyRequests:
 			return errors.New("You already have the maximum number of links open. Stop one (Ctrl-C in its window) and try again.")
 		}

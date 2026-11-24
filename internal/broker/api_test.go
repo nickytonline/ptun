@@ -10,11 +10,11 @@ import (
 
 type fakeAuth struct{}
 
-func (fakeAuth) Email(r *http.Request) (string, error) {
+func (fakeAuth) Identify(r *http.Request) (Caller, error) {
 	if e := r.Header.Get("X-Test-Email"); e != "" {
-		return e, nil
+		return Caller{Email: e, Subject: "sub|" + e}, nil
 	}
-	return "", errors.New("no auth")
+	return Caller{}, errors.New("no auth")
 }
 
 func TestAPI(t *testing.T) {
@@ -60,5 +60,30 @@ func TestAPI(t *testing.T) {
 	}
 	if c := do("DELETE", "/api/tunnels/"+id, "a@x.dev", "").Code; c != 404 {
 		t.Fatalf("second delete %d", c)
+	}
+	// Stable: the hostname comes from the JWT subject, never from the request body.
+	want := `"hostname":"demo-` + StableID("sub|a@x.dev", "maisonlab.dev") + `.maisonlab.dev"`
+	rec = do("POST", "/api/tunnels", "a@x.dev", `{"target":"localhost:1","name":"demo","subject":"forged"}`)
+	if rec.Code != 201 || !strings.Contains(rec.Body.String(), want) || !strings.Contains(rec.Body.String(), `"stable":true`) {
+		t.Fatalf("stable create %d %s", rec.Code, rec.Body)
+	}
+	if c := do("POST", "/api/tunnels", "a@x.dev", `{"target":"localhost:1","name":"no good"}`).Code; c != 400 {
+		t.Fatalf("bad name %d", c)
+	}
+}
+
+func TestAPIConflictIs409(t *testing.T) {
+	t.Parallel()
+	f := newFake()
+	m, _ := newMgr(f)
+	f.seed("g1", "grafana")
+	f.routes["g1"].From = "https://" + StableHostname("", "sub|a@x.dev", "maisonlab.dev")
+	h := NewAPI(m, fakeAuth{}, m.log)
+	req := httptest.NewRequest("POST", "/api/tunnels", strings.NewReader(`{"target":"localhost:1","stable":true}`))
+	req.Header.Set("X-Test-Email", "a@x.dev")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != 409 || !strings.Contains(rec.Body.String(), "already used by another route") {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
 	}
 }

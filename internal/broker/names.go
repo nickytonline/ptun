@@ -4,9 +4,12 @@ package broker
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"strconv"
 	"strings"
 )
 
@@ -107,4 +110,50 @@ func VisitorPolicy(email string, public bool) ([]byte, error) {
 		return PublicPolicy(email)
 	}
 	return EmailPolicy(email)
+}
+
+// StableIDLen is the length of the per-user stable id (e.g. "k3x9").
+const StableIDLen = 4
+
+// StableID returns the caller's stable id: StableIDLen base36 characters of
+// sha256(baseDomain + "|" + sub), where sub is the IdP subject from Pomerium's
+// JWT. It is deterministic (no storage), one-way (the URL reveals neither the sub
+// nor the email), and changes only if the IdP subject changes.
+func StableID(subject, baseDomain string) string {
+	sum := sha256.Sum256([]byte(baseDomain + "|" + subject))
+	space := uint64(1)
+	for range StableIDLen {
+		space *= 36
+	}
+	s := strconv.FormatUint(binary.BigEndian.Uint64(sum[:8])%space, 36)
+	return strings.Repeat("0", StableIDLen-len(s)) + s
+}
+
+// MaxNameLen bounds --name so <name>-<stable id> stays well inside a DNS label (63).
+const MaxNameLen = 32
+
+// NormalizeName lowercases and validates a tunnel name: a-z, 0-9 and single
+// hyphens, starting and ending with a letter or digit.
+func NormalizeName(name string) (string, error) {
+	n := strings.ToLower(strings.TrimSpace(name))
+	bad := n == "" || len(n) > MaxNameLen || n[0] == '-' || n[len(n)-1] == '-' || strings.Contains(n, "--")
+	for _, r := range n {
+		if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-') {
+			bad = true
+		}
+	}
+	if bad {
+		return "", fmt.Errorf("%w: name %q must be 1-%d letters, digits or single hyphens, starting and ending with a letter or digit", ErrInvalidInput, name, MaxNameLen)
+	}
+	return n, nil
+}
+
+// StableHostname returns <stable id>.<baseDomain>, or <name>-<stable id>.<baseDomain>
+// when name is set. name must already be normalized.
+func StableHostname(name, subject, baseDomain string) string {
+	label := StableID(subject, baseDomain)
+	if name != "" {
+		label = name + "-" + label
+	}
+	return label + "." + baseDomain
 }

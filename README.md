@@ -11,6 +11,8 @@ ptun init ssh.maisonlab.dev:2200    # once; derives the broker (tunnels.maisonla
 ptun 8081                           # == ptun http://localhost:8081
 ptun --public 3000                  # anyone with the link can open it, no sign-in
 ptun --mcp 3000                     # share an MCP server (prints the MCP URL for your client)
+ptun --stable 3000                  # same link every run: https://k3x9.maisonlab.dev
+ptun --name demo 3000               # same link every run, named: https://demo-k3x9.maisonlab.dev
 ptun start 3000                     # same as ptun 3000
 # -> https://t-k3x9qa.maisonlab.dev   (Ctrl-C removes it)
 ```
@@ -31,6 +33,8 @@ ptun http://localhost:8081         # same, with an explicit URL
 ptun --public 3000                 # anyone with the link, no sign-in (if the broker allows public links)
 ptun --mcp 3000                    # share an MCP server; prints and copies the MCP URL (<url>/mcp)
 ptun --mcp --mcp-path /sse 3000    # MCP server whose endpoint is /sse
+ptun --stable 3000                 # the same link every run (<your id>.<domain>)
+ptun --name demo 3000              # the same link every run, with a name (demo-<your id>.<domain>)
 ptun --quiet 3000                  # no per-request log lines
 ptun --show-visitor 3000           # add who opened each request (signed-in visitors only)
 ptun --no-check 3000               # skip the "is your app running?" check
@@ -41,6 +45,8 @@ ptun --no-check 3000               # skip the "is your app running?" check
 | `--public` | off | Visitors: you OR anyone (no sign-in). Refused unless the broker sets `ALLOW_PUBLIC_TUNNELS=true`. Attaching the tunnel stays creator-only. |
 | `--mcp` | off | The route fronts an MCP server (Pomerium handles the MCP sign-in). No upstream OAuth yet (#276). |
 | `--mcp-path <path>` | `/mcp` | Path of the MCP endpoint on your app. Used in the printed URL and the route's MCP config. |
+| `--stable` | off | Use your stable link `https://<id>.<domain>` instead of a random one. See [Stable links](#stable-links). |
+| `--name <name>` | none | Stable link with a name: `https://<name>-<id>.<domain>`. 1-32 letters, digits or hyphens. Implies `--stable`. |
 | `--quiet` | off | Don't print a line per request. The link and status lines still print. |
 | `--show-visitor` | off | Append the visitor's email (from Pomerium's identity header, display only) to each log line. |
 | `--no-check` | off | Don't check that something is listening on the port before creating the link. |
@@ -164,7 +170,8 @@ after the 10 minute TTL.
 1. `ptun` signs in through Pomerium's programmatic login: `GET https://<broker>/.pomerium/api/v1/login?pomerium_redirect_uri=http://127.0.0.1:<port>/`
    returns a sign-in URL; after sign-in Pomerium redirects the browser to the loopback listener with `?pomerium_jwt=`.
    The JWT is cached and sent as `Authorization: Pomerium <jwt>`. On 401/403/redirect it signs in once more.
-2. `POST /api/tunnels {"target":"localhost:8081"}` returns `{id,url,hostname,ssh_host,ssh_port,expires_at,heartbeat_interval_seconds}`.
+2. `POST /api/tunnels {"target":"localhost:8081"}` (plus `"stable": true` and/or `"name": "demo"`) returns
+   `{id,url,hostname,ssh_host,ssh_port,stable,expires_at,heartbeat_interval_seconds}`.
 3. `ptun` starts a local logging reverse proxy on `127.0.0.1:<random port>` (WebSockets work) and runs
    `ssh -p 2200 -N -R <hostname>:443:127.0.0.1:<proxy port> <ssh_host>` as a child (only the sign-in link and errors from ssh
    are shown), heartbeats every `heartbeat_interval_seconds`, and on exit or SIGINT/SIGTERM
@@ -177,10 +184,11 @@ Headless HTTP API (`cmd/tunnel-broker`): `POST /api/tunnels`, `POST /api/tunnels
 
 - Auth: `X-Pomerium-Jwt-Assertion` verified against the JWKS (`JWKS_URL`, default
   `https://tunnels.maisonlab.dev/.well-known/pomerium/jwks.json`) with `aud` = `JWT_AUDIENCE` (the broker host). The
-  `email` claim is the owner. Only heartbeat/delete by the creating email.
+  `email` claim is the owner and `sub` is the source of the stable id. Only heartbeat/delete by the creating email.
 - Policy and route: Core ignores `Route.ppl_policies` for routes stored through the config API and only enforces
   `policy_ids`. So each tunnel gets a Policy `ephemeral:<id> <email>` (`source_ppl`: `allow: and: - email: is: <email>`),
-  created first, and a Route `ephemeral:<id> <email>` with `policy_ids=[policy]`, `from https://t-<id>.<BASE_DOMAIN>`,
+  created first, and a Route `ephemeral:<id> <email>` with `policy_ids=[policy]`, `from https://t-<id>.<BASE_DOMAIN>`
+  (or the [stable hostname](#stable-links), checked against every existing route first),
   `allow_websockets`, and the same PPL inline in `upstream_tunnel.ssh_policy` (which Core does honour). If the route
   cannot be created the policy is deleted.
 - Config API: Connect `ConfigService` via `sdk-go` with `SHARED_SECRET` (base64) as the API token, like the Terraform
@@ -216,6 +224,35 @@ Headless HTTP API (`cmd/tunnel-broker`): `POST /api/tunnels`, `POST /api/tunnels
   sign-in rejected ("Permission denied").
 - ssh stderr is filtered: only lines with a URL (the sign-in link) or an error-looking word are shown, partial lines
   (prompts) are forwarded immediately, stdin is passed through.
+
+## Stable links
+
+`ptun 3000` gets a new random URL (`t-<6 random chars>`) every run. `--stable` and `--name` give the same URL every run,
+so you can bookmark it, paste it into a webhook or OAuth config once, and keep it.
+
+```
+ptun --stable 3000       ->  https://k3x9.maisonlab.dev
+ptun --name demo 3000    ->  https://demo-k3x9.maisonlab.dev
+ptun --name api 8080     ->  https://api-k3x9.maisonlab.dev
+```
+
+- **`k3x9` is your id**, the same for every name. The broker computes it as 4 base36 characters of
+  `sha256(BASE_DOMAIN + "|" + sub)`, where `sub` is the IdP subject in the Pomerium JWT the broker already verifies.
+  Nothing is stored. The id is one-way: the URL reveals neither your `sub` nor your email, and 4 characters can't be
+  reversed (huge numbers of subjects share each id). Someone who already has your exact `sub` could compute it and
+  confirm the URL is yours. It changes only if your IdP subject changes (an email change does not change it). Two
+  accounts (two `sub`s) get two ids.
+- **Only the hostname is stable.** The route and policy are still created on start and removed on Ctrl-C, so the URL
+  returns Pomerium's 404 while ptun isn't running.
+- **One live tunnel per link.** Different names run side by side (up to `MAX_TUNNELS_PER_USER`). Running the same
+  `--name` (or `--stable`) while it's live is refused (409) with a hint, like ngrok's "endpoint already online"; there
+  is no take-over flag. So that a crashed ptun doesn't hold its link for long, stable links heartbeat every 30s with a
+  2 minute lease (random links keep 2m/10m). Another user can never
+  take your link: different `sub`, different id. If a stable hostname is used by any route that isn't your own tunnel
+  (a hand-made route, someone else's tunnel), the broker refuses with 409 and touches nothing.
+- **`--public --stable`** makes a public URL that never changes, so anyone who has seen it can come back. ptun prints a
+  reminder. Dev brokers (`DEV_AUTH_EMAIL`) use a subject derived from the email, so their stable ids differ from the
+  deployed broker's.
 
 ## MCP tunnels
 

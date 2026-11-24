@@ -24,6 +24,7 @@ type Tunnel struct {
 	Public                   bool      `json:"public"`
 	MCP                      bool      `json:"mcp"`
 	MCPPath                  string    `json:"mcp_path"`
+	Stable                   bool      `json:"stable"`
 	ExpiresAt                time.Time `json:"expires_at"`
 	HeartbeatIntervalSeconds int       `json:"heartbeat_interval_seconds"`
 }
@@ -152,6 +153,8 @@ type CreateParams struct {
 	Public  bool   `json:"public"`
 	MCP     bool   `json:"mcp,omitempty"`
 	MCPPath string `json:"mcp_path,omitempty"`
+	Stable  bool   `json:"stable,omitempty"`
+	Name    string `json:"name,omitempty"`
 }
 
 // Create asks the broker for a tunnel to target.
