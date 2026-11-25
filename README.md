@@ -1,5 +1,7 @@
 # ptun
 
+<p align="center"><img src="docs/images/ptun-banner.png" alt="ptun startup banner: a pixel-art Pomeranian in sunglasses above the word PTUN" width="240"></p>
+
 An independent experiment, not an official Pomerium project.
 
 `cloudflared tunnel --url http://localhost:8081`, on Pomerium. One command exposes a local port at a fresh URL;
