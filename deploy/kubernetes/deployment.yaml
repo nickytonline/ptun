@@ -27,7 +27,10 @@ spec:
           env:
             - name: SHARED_SECRET
               valueFrom: {secretKeyRef: {name: tunnel-broker, key: SHARED_SECRET}}
-            - {name: CONFIG_API_URLS, value: "https://pomerium.example.svc.cluster.local:5443"}
+            # List every Pomerium member, not a Service: with a clustered (Raft) databroker only the leader serves the
+            # config API, and a Service would send some calls to followers. One URL only works for a single-instance Core.
+            - name: CONFIG_API_URLS
+              value: "https://pomerium-0.pomerium-headless.pomerium.svc.cluster.local:5443,https://pomerium-1.pomerium-headless.pomerium.svc.cluster.local:5443,https://pomerium-2.pomerium-headless.pomerium.svc.cluster.local:5443"
             - {name: BROKER_HOST, value: tunnels.example.com}
             - {name: BASE_DOMAIN, value: example.com}
             - {name: SSH_HOST, value: ssh.example.com}
