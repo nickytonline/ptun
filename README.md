@@ -12,6 +12,14 @@ An independent experiment, not an official Pomerium project.
 `cloudflared tunnel --url http://localhost:8081`, on Pomerium. One command exposes a local port at a fresh URL;
 the route disappears when the command stops.
 
+> [!IMPORTANT]
+> `ptun` is not a hosted service. It needs a running [Pomerium](https://www.pomerium.com/docs) instance that you or
+> your organization run, with [Native SSH Access](https://www.pomerium.com/docs/capabilities/native-ssh-access) and
+> [reverse tunneling](https://www.pomerium.com/docs/capabilities/reverse-tunneling) turned on, and a
+> [tunnel broker](docs/install.md) deployed next to it.
+> If someone already runs these for you, you only need `ptun` and the `ptun init` command they give you. Otherwise,
+> set them up first: see [docs/install.md](docs/install.md).
+
 ```bash
 brew install nickytonline/tap/ptun  # or npx ptun, curl | sh, go install: see Install
 ptun init ssh.example.com:2200      # once; derives the broker (tunnels.example.com)

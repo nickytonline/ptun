@@ -8,7 +8,8 @@ route in your Pomerium Core through its config API. This page covers running tha
 Set these up first. The broker can't work around any of them.
 
 1. **Pomerium Core with SSH upstream tunnels.** `ptun` runs `ssh -R <hostname>:443:...` against Pomerium's SSH
-   listener, so Core needs:
+   listener, so Core needs [Native SSH Access](https://www.pomerium.com/docs/capabilities/native-ssh-access) and
+   [reverse tunneling](https://www.pomerium.com/docs/capabilities/reverse-tunneling):
    - `ssh_address` (for example `0.0.0.0:2200`), reachable from your users' laptops. Its host and port are what you set
      in `SSH_HOST` and `SSH_PORT`.
    - SSH host keys and a user CA key (`ssh_host_keys`, `ssh_user_ca_key`).
