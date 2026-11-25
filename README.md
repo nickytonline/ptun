@@ -68,7 +68,7 @@ ptun --no-check 3000               # skip the "is your app running?" check
 | `--quiet` | off | Don't print a line per request. The link, status lines and startup banner still print. |
 | `--show-visitor` | off | Append the visitor's email (from Pomerium's identity header, display only) to each log line. |
 | `--no-check` | off | Don't check that something is listening on the port before creating the link. |
-| `--no-banner` | off | Don't show the Pomeranian at startup. It only shows in an interactive terminal with at least 256 colors (`COLORTERM=truecolor` or a `TERM` containing `256color`). It never shows when `NO_COLOR` is set, when `CI` or `PTUN_NO_BANNER` is set to anything but `0` or `false`, or when `TERM=dumb`. |
+| `--no-banner` | off | Don't show the Pomeranian at startup. It only shows in an interactive terminal with 24-bit color (`COLORTERM=truecolor`, or a terminal known to support it such as iTerm2, Ghostty, kitty, WezTerm or VS Code). It never shows when `NO_COLOR` is set, when `CI` or `PTUN_NO_BANNER` is set to anything but `0` or `false`, or when `TERM=dumb`. |
 
 Flags can go before or after the port.
 

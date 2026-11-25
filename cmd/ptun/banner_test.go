@@ -77,14 +77,9 @@ func TestBannerOptOuts(t *testing.T) {
 	}
 
 	noTrue := func(term string) func(string) string { return env(map[string]string{"TERM": term}) }
-	for _, term := range []string{"linux", "vt100", "xterm", ""} {
+	for _, term := range []string{"xterm-256color", "screen-256color", "linux", "xterm", ""} {
 		if shouldShowBanner(tty, false, noTrue(term)) {
-			t.Errorf("TERM=%q without truecolor should hide it", term)
-		}
-	}
-	for _, term := range []string{"xterm-256color", "screen-256color", "tmux-256color"} {
-		if !shouldShowBanner(tty, false, noTrue(term)) {
-			t.Errorf("TERM=%q should show it in 256 colors", term)
+			t.Errorf("TERM=%q without 24-bit color should hide it", term)
 		}
 	}
 }
@@ -103,31 +98,6 @@ func TestBannerArt(t *testing.T) {
 		if l != "" && !strings.HasSuffix(l, "\x1b[0m") {
 			t.Errorf("line %d does not reset colors", i+1)
 		}
-	}
-}
-
-func TestTo256(t *testing.T) {
-	t.Parallel()
-	got := to256("\x1b[38;2;255;0;0m\x1b[48;2;0;0;0m▀")
-	if want := "\x1b[38;5;196m\x1b[48;5;16m▀"; got != want {
-		t.Errorf("to256 = %q, want %q", got, want)
-	}
-	for _, c := range []struct {
-		name    string
-		r, g, b int
-		want    int
-	}{
-		{"exact gray", 128, 128, 128, 244},
-		{"dark nose gray goes to the gray ramp, not cube gray 59", 74, 52, 66, 237},
-		{"deep fur shadow stays red-brown, not olive 94", 0x93, 0x43, 0x2c, 131},
-		{"lens cyan", 0x3f, 0xf5, 0xf0, 87},
-	} {
-		if got := xterm256(c.r, c.g, c.b); got != c.want {
-			t.Errorf("%s: xterm256(%d,%d,%d) = %d, want %d", c.name, c.r, c.g, c.b, got, c.want)
-		}
-	}
-	if strings.Contains(to256(pomeranian), ";2;") {
-		t.Error("to256 left 24-bit codes in the banner")
 	}
 }
 
