@@ -11,8 +11,8 @@ ptun init ssh.example.com:2200      # once; derives the broker (tunnels.example.
 ptun 8081                           # == ptun http://localhost:8081
 ptun --public 3000                  # anyone with the link can open it, no sign-in
 ptun --mcp 3000                     # share an MCP server (prints the MCP URL for your client)
-ptun --stable 3000                  # same link every run: https://k3x9.example.com
-ptun --name demo 3000               # same link every run, named: https://demo-k3x9.example.com
+ptun --stable 3000                  # same link every run: https://k3x9m2pq.example.com
+ptun --name demo 3000               # same link every run, named: https://demo-k3x9m2pq.example.com
 ptun start 3000                     # same as ptun 3000
 # -> https://t-k3x9qa.example.com   (Ctrl-C removes it)
 ```
@@ -241,14 +241,14 @@ Headless HTTP API (`cmd/tunnel-broker`): `POST /api/tunnels`, `POST /api/tunnels
 so you can bookmark it, paste it into a webhook or OAuth config once, and keep it.
 
 ```
-ptun --stable 3000       ->  https://k3x9.example.com
-ptun --name demo 3000    ->  https://demo-k3x9.example.com
-ptun --name api 8080     ->  https://api-k3x9.example.com
+ptun --stable 3000       ->  https://k3x9m2pq.example.com
+ptun --name demo 3000    ->  https://demo-k3x9m2pq.example.com
+ptun --name api 8080     ->  https://api-k3x9m2pq.example.com
 ```
 
-- **`k3x9` is your id**, the same for every name. The broker computes it as 4 base36 characters of
+- **`k3x9m2pq` is your id**, the same for every name. The broker computes it as 8 base36 characters of
   `sha256(BASE_DOMAIN + "|" + sub)`, where `sub` is the IdP subject in the Pomerium JWT the broker already verifies.
-  Nothing is stored. The id is one-way: the URL reveals neither your `sub` nor your email, and 4 characters can't be
+  Nothing is stored. The id is one-way: the URL reveals neither your `sub` nor your email, and 8 characters can't be
   reversed (huge numbers of subjects share each id). Someone who already has your exact `sub` could compute it and
   confirm the URL is yours. It changes only if your IdP subject changes (an email change does not change it). Two
   accounts (two `sub`s) get two ids.
