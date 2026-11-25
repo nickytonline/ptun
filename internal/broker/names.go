@@ -111,8 +111,8 @@ func VisitorPolicy(email string, public bool) ([]byte, error) {
 	return EmailPolicy(email)
 }
 
-// StableIDLen is the length of the per-user stable id (e.g. "k3x9").
-const StableIDLen = 4
+// StableIDLen is the length of the per-user stable id (e.g. "k3x9m2pq").
+const StableIDLen = 8
 
 // StableID returns the caller's stable id: StableIDLen base36 characters of
 // sha256(baseDomain + "|" + sub), where sub is the IdP subject from Pomerium's

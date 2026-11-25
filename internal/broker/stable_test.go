@@ -10,7 +10,7 @@ import (
 
 func TestStableID(t *testing.T) {
 	t.Parallel()
-	re := regexp.MustCompile(`^[a-z0-9]{4}$`)
+	re := regexp.MustCompile(`^[a-z0-9]{8}$`)
 	a := StableID("auth0|abc", "example.com")
 	if !re.MatchString(a) {
 		t.Fatalf("bad stable id %q", a)
