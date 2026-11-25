@@ -318,8 +318,9 @@ deletes `ephemeral:*` policies that no `ephemeral:*` route references and no lea
 ### Build and test
 
 ```bash
-go vet ./... && go test -race ./...
-go build -o bin/ptun ./cmd/ptun && go build -o bin/tunnel-broker ./cmd/tunnel-broker   # bin/ is gitignored
+make check   # gofmt, go mod tidy, vet, race tests, golangci-lint, govulncheck, shellcheck: the same checks CI runs (needs shellcheck installed, e.g. brew install shellcheck)
+make build   # bin/ptun and bin/tunnel-broker (bin/ is gitignored)
+make image   # the broker image, built locally
 go install ./cmd/ptun   # use your local build as `ptun`: installs to $(go env GOBIN) or ~/go/bin, no sudo
 ```
 
