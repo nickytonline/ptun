@@ -108,7 +108,7 @@ docker run -d --name tunnel-broker --restart unless-stopped \
   -e BASE_DOMAIN=example.com \
   -e SSH_HOST=ssh.example.com \
   -e SSH_PORT=2200 \
-  ghcr.io/nickytonline/tunnel-broker:latest
+  ghcr.io/nickytonline/tunnel-broker:1.0.0  # the version you're running, without the v
 ```
 
 How you wire the two together depends on where Pomerium runs:

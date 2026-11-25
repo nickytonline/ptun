@@ -4,13 +4,18 @@
 #   curl -fsSL https://raw.githubusercontent.com/nickytonline/ptun/main/install.sh | sh
 #
 # Settings (environment variables):
-#   PTUN_VERSION       release tag to install, e.g. v0.2.0 (default: the latest release)
+#   PTUN_VERSION       version to install, e.g. 0.2.0 or v0.2.0 (default: the latest release)
 #   PTUN_INSTALL_DIR   where to put ptun (default: ~/.local/bin)
 set -eu
 
 repo="nickytonline/ptun"
 version="${PTUN_VERSION:-latest}"
 install_dir="${PTUN_INSTALL_DIR:-$HOME/.local/bin}"
+
+case "$version" in
+  latest | v*) ;;
+  *) version="v$version" ;;
+esac
 
 err() {
   echo "ptun install: $*" >&2
@@ -40,7 +45,10 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
 echo "Downloading $archive ($version)"
-curl -fsSL "$base/$archive" -o "$tmp/$archive" || err "download failed: $base/$archive"
+if ! curl -fsSL "$base/$archive" -o "$tmp/$archive"; then
+  [ "$version" = latest ] && err "download failed: $base/$archive"
+  err "download failed: $base/$archive. Is $version a release? See https://github.com/$repo/releases"
+fi
 curl -fsSL "$base/checksums.txt" -o "$tmp/checksums.txt" || err "download failed: $base/checksums.txt"
 
 expected=$(awk -v f="$archive" '$2 == f { print $1 }' "$tmp/checksums.txt")
@@ -57,7 +65,12 @@ mkdir -p "$install_dir"
 mv "$tmp/ptun" "$install_dir/ptun"
 chmod 755 "$install_dir/ptun"
 
-echo "Installed $("$install_dir/ptun" --version) to $install_dir/ptun"
+if installed=$("$install_dir/ptun" --version 2>&1); then
+  echo "Installed $installed to $install_dir/ptun"
+else
+  echo "Installed ptun to $install_dir/ptun, but it didn't run: $installed" >&2
+  echo "Check that $install_dir allows running programs (not mounted noexec) and that this is a $os/$arch machine." >&2
+fi
 case ":$PATH:" in
   *":$install_dir:"*) ;;
   *) echo "Add $install_dir to your PATH to run ptun." ;;

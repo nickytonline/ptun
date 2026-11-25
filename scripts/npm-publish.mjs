@@ -10,8 +10,9 @@
 import { execFileSync } from "node:child_process";
 import { chmodSync, copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = new URL("..", import.meta.url).pathname;
+const root = fileURLToPath(new URL("..", import.meta.url));
 const dist = join(root, "dist");
 const out = join(dist, "npm");
 const dryRun = process.argv.includes("--dry-run");

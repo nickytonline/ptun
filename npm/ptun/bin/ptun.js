@@ -33,11 +33,12 @@ try {
 }
 
 const child = spawn(bin, process.argv.slice(2), { stdio: "inherit" });
-// Ctrl-C reaches ptun directly (same process group). Stay alive until it has cleaned up its tunnel,
-// and pass on signals sent only to this wrapper.
+// Pass every signal on, so ptun cleans up its tunnel even when only this wrapper is signalled
+// (kill, concurrently, a process manager). On Ctrl-C ptun gets SIGINT twice, once from the terminal
+// and once from here; it ignores the second while it cleans up. Stay alive until ptun exits.
 for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
   process.on(sig, () => {
-    if (sig !== "SIGINT") child.kill(sig);
+    if (child.exitCode === null && child.signalCode === null) child.kill(sig);
   });
 }
 child.on("error", (err) => {

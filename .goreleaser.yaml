@@ -61,6 +61,7 @@ release:
 
 homebrew_casks:
   - name: ptun
+    skip_upload: auto # prereleases (-rc.1) don't move the cask that `brew upgrade` installs
     ids: [ptun]
     homepage: https://github.com/nickytonline/ptun
     description: Share an app on your computer at a Pomerium web address

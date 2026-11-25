@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"runtime/debug"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -16,12 +17,13 @@ import (
 var version string
 
 // buildVersion is the release version, else the module version from `go install ...@vX`, else "dev".
+// The leading "v" is dropped so every install method prints the same thing as the release (0.2.0).
 func buildVersion() string {
 	if version != "" {
-		return version
+		return strings.TrimPrefix(version, "v")
 	}
 	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
-		return bi.Main.Version
+		return strings.TrimPrefix(bi.Main.Version, "v")
 	}
 	return "dev"
 }
