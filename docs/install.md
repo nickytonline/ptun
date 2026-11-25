@@ -93,7 +93,7 @@ docker build -t tunnel-broker:local .
 ```bash
 # SHARED_SECRET comes from your shell environment, so it isn't written on the command line.
 docker run -d --name tunnel-broker --restart unless-stopped \
-  -p 8080:8080 \
+  -p 127.0.0.1:8080:8080 \
   -e SHARED_SECRET \
   -e CONFIG_API_URLS=https://pomerium.internal.example.com:5443 \
   -e BROKER_HOST=tunnels.example.com \
@@ -103,8 +103,10 @@ docker run -d --name tunnel-broker --restart unless-stopped \
   tunnel-broker:local
 ```
 
-Then point the Pomerium route for `tunnels.example.com` at this container's port 8080, and keep that port closed to
-everything except Pomerium. `GET /healthz` is unauthenticated and returns 200.
+Then point the Pomerium route for `tunnels.example.com` at this container's port 8080. The example binds it to
+loopback, which suits Pomerium running on the same host. If Pomerium runs in a container, put both on a shared Docker
+network and drop `-p` entirely. Either way, keep the port closed to everything except Pomerium: the broker holds the
+full-admin shared secret. `GET /healthz` is unauthenticated and returns 200.
 
 ### Kubernetes
 
