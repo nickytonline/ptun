@@ -34,8 +34,8 @@ First time? Run the setup command your admin gave you, e.g.
   ptun init ssh.example.com:2200`
 
 type runFlags struct {
-	public, quiet, showVisitor, noCheck, mcp, stable bool
-	mcpPath, name                                    string
+	public, quiet, showVisitor, noCheck, mcp, stable, noBanner bool
+	mcpPath, name                                              string
 }
 
 func (f *runFlags) add(cmd *cobra.Command) {
@@ -47,6 +47,7 @@ func (f *runFlags) add(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&f.quiet, "quiet", false, "do not print a line for every request")
 	cmd.Flags().BoolVar(&f.showVisitor, "show-visitor", false, "show who opened each request (signed-in visitors only)")
 	cmd.Flags().BoolVar(&f.noCheck, "no-check", false, "do not check that your app is running before sharing")
+	cmd.Flags().BoolVar(&f.noBanner, "no-banner", false, "do not show the Pomeranian at startup (or set PTUN_NO_BANNER=1)")
 }
 
 // share runs the shared flow for `ptun <target>` and `ptun start <target>`.
@@ -62,6 +63,7 @@ func share(cmd *cobra.Command, arg string, f *runFlags, exitCode *int) error {
 	*exitCode, err = cli.Run(cmd.Context(), cli.Options{
 		Target: target, Arg: arg, Public: f.public, MCP: f.mcp, MCPPath: f.mcpPath, Stable: f.stable, Name: f.name, Quiet: f.quiet, ShowVisitor: f.showVisitor, NoCheck: f.noCheck,
 		Dir: dir, Out: cmd.ErrOrStderr(),
+		Banner: func() { printBanner(cmd.ErrOrStderr(), f.noBanner) },
 	})
 	return err
 }

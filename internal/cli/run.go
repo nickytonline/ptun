@@ -47,6 +47,7 @@ type Options struct {
 	Dir         string
 	Out         io.Writer
 	Clipboard   func(string) bool // copies text; nil uses the system clipboard
+	Banner      func()            // called once setup checks pass, before any tunnel output; may be nil
 }
 
 // readyAfterPrivate is how long ssh must stay up without error before a
@@ -69,6 +70,9 @@ func Run(ctx context.Context, o Options) (int, error) {
 		if err := CheckPort(ctx, o.Target, o.Arg); err != nil {
 			return 1, err
 		}
+	}
+	if o.Banner != nil {
+		o.Banner()
 	}
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
