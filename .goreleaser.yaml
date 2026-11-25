@@ -1,0 +1,123 @@
+# Release config. A `v*` tag runs .github/workflows/release.yml, which runs `goreleaser release`.
+# Try it locally without publishing: goreleaser release --snapshot --clean
+# See docs/releasing.md.
+version: 2
+
+project_name: ptun
+
+builds:
+  - id: ptun
+    main: ./cmd/ptun
+    binary: ptun
+    env: [CGO_ENABLED=0]
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+  # Only shipped as the GHCR image, not as an archive.
+  - id: tunnel-broker
+    main: ./cmd/tunnel-broker
+    binary: tunnel-broker
+    env: [CGO_ENABLED=0]
+    goos: [linux]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: ptun
+    ids: [ptun]
+    # No version in the name, so .../releases/latest/download/ptun_<os>_<arch>.tar.gz is a stable URL
+    # (install.sh and mise use it).
+    name_template: "ptun_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  draft: false
+  prerelease: auto
+
+homebrew_casks:
+  - name: ptun
+    ids: [ptun]
+    homepage: https://github.com/nickytonline/ptun
+    description: Share an app on your computer at a Pomerium web address
+    license: Apache-2.0
+    repository:
+      owner: nickytonline
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Casks
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    # The binary isn't signed or notarized, so clear the quarantine flag that macOS would otherwise block it on.
+    hooks:
+      post:
+        install_steps: |
+          if OS.mac? && system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/ptun"]
+          end
+
+nfpms:
+  - id: ptun
+    ids: [ptun]
+    package_name: ptun
+    file_name_template: "ptun_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    homepage: https://github.com/nickytonline/ptun
+    description: Share an app on your computer at a Pomerium web address
+    maintainer: Nick Taylor
+    license: Apache-2.0
+    formats: [deb, rpm, apk]
+    bindir: /usr/bin
+    # ptun runs `ssh -R` against Pomerium.
+    overrides:
+      deb:
+        dependencies: [openssh-client]
+      rpm:
+        dependencies: [openssh-clients]
+      apk:
+        dependencies: [openssh-client]
+
+dockers_v2:
+  - id: tunnel-broker
+    ids: [tunnel-broker]
+    dockerfile: Dockerfile.goreleaser
+    images:
+      - ghcr.io/nickytonline/tunnel-broker
+    tags:
+      - "{{ .Version }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      org.opencontainers.image.title: tunnel-broker
+      org.opencontainers.image.description: Tunnel broker for ptun, behind Pomerium
+      org.opencontainers.image.source: https://github.com/nickytonline/ptun
+      org.opencontainers.image.version: "{{ .Version }}"
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.created: "{{ .Date }}"
+      org.opencontainers.image.licenses: Apache-2.0

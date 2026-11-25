@@ -42,3 +42,11 @@ func TestStartAliasAndFlags(t *testing.T) {
 		t.Error("root help should lead with the one-line explanation")
 	}
 }
+
+func TestVersionFlag(t *testing.T) {
+	t.Parallel()
+	root, _ := newRootCmd()
+	if root.Version == "" {
+		t.Fatal("root command has no version")
+	}
+}

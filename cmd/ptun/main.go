@@ -5,11 +5,26 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
 
 	"github.com/spf13/cobra"
 
 	"github.com/nickytonline/ptun/internal/cli"
 )
+
+// version is set at release time with -ldflags "-X main.version=...".
+var version string
+
+// buildVersion is the release version, else the module version from `go install ...@vX`, else "dev".
+func buildVersion() string {
+	if version != "" {
+		return version
+	}
+	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		return bi.Main.Version
+	}
+	return "dev"
+}
 
 func main() {
 	root, exitCode := newRootCmd()
@@ -80,6 +95,7 @@ func newRootCmd() (*cobra.Command, *int) {
   ptun --name demo 3000
   ptun http://localhost:8081
   ptun start 3000      # same as ptun 3000`,
+		Version:       buildVersion(),
 		Args:          cobra.MaximumNArgs(1),
 		SilenceUsage:  true,
 		SilenceErrors: true,
