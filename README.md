@@ -1,6 +1,11 @@
 # ptun
 
-<p align="center"><img src="docs/images/ptun-banner.png" alt="ptun startup banner: a pixel-art Pomeranian in sunglasses above the word PTUN" width="240"></p>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/ptun-banner-dark.png">
+    <img src="docs/images/ptun-banner.png" alt="ptun startup banner: a pixel-art Pomeranian in sunglasses above the word PTUN" width="240">
+  </picture>
+</p>
 
 An independent experiment, not an official Pomerium project.
 
