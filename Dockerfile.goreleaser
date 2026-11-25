@@ -1,0 +1,8 @@
+# tunnel-broker image for releases. GoReleaser (dockers_v2) builds the binaries and puts each one at
+# <os>/<arch>/tunnel-broker in the build context. For a local build from source, use Dockerfile.
+FROM gcr.io/distroless/static-debian12:nonroot
+ARG TARGETPLATFORM
+COPY ${TARGETPLATFORM}/tunnel-broker /tunnel-broker
+USER 65532:65532
+EXPOSE 8080
+ENTRYPOINT ["/tunnel-broker"]

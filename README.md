@@ -13,7 +13,7 @@ An independent experiment, not an official Pomerium project.
 the route disappears when the command stops.
 
 ```bash
-go install github.com/nickytonline/ptun/cmd/ptun@latest
+brew install nickytonline/tap/ptun  # or npx ptun, curl | sh, go install: see Install
 ptun init ssh.example.com:2200      # once; derives the broker (tunnels.example.com)
 ptun 8081                           # == ptun http://localhost:8081
 ptun --public 3000                  # anyone with the link can open it, no sign-in
@@ -26,12 +26,32 @@ ptun start 3000                     # same as ptun 3000
 
 ## Install
 
+`ptun` needs `ssh` on your `PATH`. Prebuilt binaries cover macOS, Linux and Windows on amd64 and arm64.
+
 ```bash
-go install github.com/nickytonline/ptun/cmd/ptun@latest   # installs to $(go env GOBIN) or ~/go/bin
+# Homebrew (macOS and Linux)
+brew install nickytonline/tap/ptun
+
+# npm: run without installing, or install globally
+npx ptun 3000
+npm install -g ptun
+
+# Install script (macOS and Linux): installs to ~/.local/bin, verifies the checksum
+curl -fsSL https://raw.githubusercontent.com/nickytonline/ptun/main/install.sh | sh
+# a specific version or directory: ... | PTUN_VERSION=v0.2.0 PTUN_INSTALL_DIR=/usr/local/bin sh
+
+# mise
+mise use -g github:nickytonline/ptun
+
+# Go 1.27+: installs to $(go env GOBIN) or ~/go/bin
+go install github.com/nickytonline/ptun/cmd/ptun@latest
 ```
 
-Needs Go 1.27+ and `ssh` on your `PATH`. While the repo is private, Go has to fetch it with your Git credentials
-instead of the public module proxy: `go env -w GOPRIVATE=github.com/nickytonline/ptun` once (and Git access to the repo).
+Debian/Ubuntu, Fedora/RHEL and Alpine packages (`.deb`, `.rpm`, `.apk`) and Windows zips are on the
+[releases page](https://github.com/nickytonline/ptun/releases). `ptun --version` prints the installed version.
+
+While the repo is private, only `go install` works, and Go has to fetch it with your Git credentials instead of the
+public module proxy: `go env -w GOPRIVATE=github.com/nickytonline/ptun` once (and Git access to the repo).
 
 `ptun` needs a tunnel broker behind your Pomerium. To run one, see [docs/install.md](docs/install.md).
 
@@ -331,6 +351,10 @@ make build   # bin/ptun and bin/tunnel-broker (bin/ is gitignored)
 make image   # the broker image, built locally
 go install ./cmd/ptun   # use your local build as `ptun`: installs to $(go env GOBIN) or ~/go/bin, no sudo
 ```
+
+### Releasing
+
+Push a `v*` tag. See [docs/releasing.md](docs/releasing.md).
 
 ## Running the broker
 
