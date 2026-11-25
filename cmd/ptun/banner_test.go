@@ -3,8 +3,10 @@ package main
 import (
 	"bytes"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func env(m map[string]string) func(string) string {
@@ -54,10 +56,14 @@ func TestBannerOptOuts(t *testing.T) {
 func TestBannerArt(t *testing.T) {
 	t.Parallel()
 	lines := strings.Split(strings.TrimRight(pomeranian, "\n"), "\n")
-	if len(lines) != 28 {
-		t.Errorf("banner is %d lines, want 28", len(lines))
+	if len(lines) != 17 {
+		t.Errorf("banner is %d lines, want 17", len(lines))
 	}
+	sgr := regexp.MustCompile(`\x1b\[[0-9;]*m`)
 	for i, l := range lines {
+		if w := utf8.RuneCountInString(sgr.ReplaceAllString(l, "")); w > 30 {
+			t.Errorf("line %d is %d columns, want at most 30", i+1, w)
+		}
 		if l != "" && !strings.HasSuffix(l, "\x1b[0m") {
 			t.Errorf("line %d does not reset colors", i+1)
 		}

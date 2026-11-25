@@ -10,8 +10,10 @@ import (
 	"strings"
 )
 
-// pomeranian is the Pomerium Pomeranian as 24-bit color half-block art,
-// 60 columns by 28 lines.
+// pomeranian is the Air Pom head (github.com/nickytonline/air-pom), mirrored
+// to face left, over "PTUN" in the Air Pom logo font on a dark plate so the
+// title looks the same in light and dark themes. It is 24-bit color
+// half-block art, 30 columns by 17 lines.
 //
 //go:embed pomeranian.ans
 var pomeranian string
@@ -26,7 +28,8 @@ func printBanner(w io.Writer, noBanner bool) {
 	if !truecolor(os.Getenv) {
 		art = to256(art)
 	}
-	fmt.Fprintln(w, art)
+	// A blank line above and below keeps the art clear of the prompt and the status lines.
+	fmt.Fprint(w, "\n", art, "\n")
 }
 
 func shouldShowBanner(w io.Writer, noBanner bool, getenv func(string) string) bool {
