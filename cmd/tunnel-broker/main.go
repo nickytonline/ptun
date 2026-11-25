@@ -37,8 +37,10 @@ func (s staticAuth) Identify(*http.Request) (broker.Caller, error) {
 	return broker.Caller{Email: string(s), Subject: "dev:" + string(s)}, nil
 }
 
+// env returns the setting with surrounding whitespace removed, or def if that
+// leaves it empty.
 func env(key, def string) string {
-	if v := os.Getenv(key); v != "" {
+	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
 		return v
 	}
 	return def
@@ -68,17 +70,33 @@ func envDur(key string, def time.Duration) (time.Duration, error) {
 	return d, nil
 }
 
-// missingRequired names the required settings that are unset. BROKER_HOST is
-// only needed to derive JWKS_URL and JWT_AUDIENCE, so it is not required with
-// DEV_AUTH_EMAIL or when both of those are set.
+// configAPIURLs splits CONFIG_API_URLS on commas, dropping blank entries.
+func configAPIURLs() []string {
+	var urls []string
+	for _, u := range strings.Split(os.Getenv("CONFIG_API_URLS"), ",") {
+		if u = strings.TrimSpace(u); u != "" {
+			urls = append(urls, u)
+		}
+	}
+	return urls
+}
+
+// missingRequired names the required settings that are unset or blank. BROKER_HOST
+// is only needed to derive JWKS_URL and JWT_AUDIENCE, so it is not required with
+// DEV_AUTH_EMAIL or when both of those are set. CONFIG_API_URLS counts as unset
+// when it holds no URLs (for example ",").
 func missingRequired() []string {
 	keys := []string{"SHARED_SECRET", "CONFIG_API_URLS", "BASE_DOMAIN", "SSH_HOST"}
-	if os.Getenv("DEV_AUTH_EMAIL") == "" && (os.Getenv("JWKS_URL") == "" || os.Getenv("JWT_AUDIENCE") == "") {
+	if env("DEV_AUTH_EMAIL", "") == "" && (env("JWKS_URL", "") == "" || env("JWT_AUDIENCE", "") == "") {
 		keys = append(keys, "BROKER_HOST")
 	}
 	var missing []string
 	for _, k := range keys {
-		if strings.TrimSpace(os.Getenv(k)) == "" {
+		unset := env(k, "") == ""
+		if k == "CONFIG_API_URLS" {
+			unset = len(configAPIURLs()) == 0
+		}
+		if unset {
 			missing = append(missing, k)
 		}
 	}
@@ -89,14 +107,14 @@ func run(log *slog.Logger) error {
 	if missing := missingRequired(); len(missing) > 0 {
 		return fmt.Errorf("required settings not set: %s (see docs/install.md)", strings.Join(missing, ", "))
 	}
-	secret := os.Getenv("SHARED_SECRET")
+	secret := env("SHARED_SECRET", "")
 	var err error
 	cfg := broker.Config{
 		AllowPublic: env("ALLOW_PUBLIC_TUNNELS", "false") == "true",
 		AllowMCP:    env("ALLOW_MCP_TUNNELS", "true") == "true",
 		RoutePrefix: env("ROUTE_PREFIX", broker.DefaultRoutePrefix),
-		BaseDomain:  os.Getenv("BASE_DOMAIN"),
-		SSHHost:     os.Getenv("SSH_HOST"),
+		BaseDomain:  env("BASE_DOMAIN", ""),
+		SSHHost:     env("SSH_HOST", ""),
 	}
 	if cfg.SSHPort, err = envInt("SSH_PORT", 2200); err != nil {
 		return err
@@ -110,12 +128,12 @@ func run(log *slog.Logger) error {
 	if cfg.HeartbeatInterval, err = envDur("HEARTBEAT_INTERVAL", 2*time.Minute); err != nil {
 		return err
 	}
-	urls := strings.Split(os.Getenv("CONFIG_API_URLS"), ",")
+	urls := configAPIURLs()
 	insecure := env("CONFIG_API_TLS_VERIFY", "false") != "true"
 
-	brokerHost := os.Getenv("BROKER_HOST")
+	brokerHost := env("BROKER_HOST", "")
 	var auth broker.Authenticator
-	if devEmail := os.Getenv("DEV_AUTH_EMAIL"); devEmail != "" {
+	if devEmail := env("DEV_AUTH_EMAIL", ""); devEmail != "" {
 		// Local testing only: no Pomerium in front, so no JWT. Refuse unless the
 		// listener is loopback, so this can never be reachable from a network.
 		host, _, err := net.SplitHostPort(env("LISTEN_ADDR", ":8080"))
