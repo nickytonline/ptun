@@ -16,6 +16,14 @@ const dist = join(root, "dist");
 const out = join(dist, "npm");
 const dryRun = process.argv.includes("--dry-run");
 
+if (!dryRun && process.env.GITHUB_ACTIONS) {
+  // Trusted publishing (OIDC) needs npm 11.5.1 or later.
+  const [major, minor, patch] = execFileSync("npm", ["--version"], { encoding: "utf8" }).trim().split(".").map(Number);
+  if (major < 11 || (major === 11 && (minor < 5 || (minor === 5 && patch < 1)))) {
+    throw new Error(`npm ${major}.${minor}.${patch} can't use trusted publishing; use npm 11.5.1 or later`);
+  }
+}
+
 const { version, tag } = JSON.parse(readFileSync(join(dist, "metadata.json"), "utf8"));
 const artifacts = JSON.parse(readFileSync(join(dist, "artifacts.json"), "utf8"));
 const prerelease = version.includes("-");
@@ -31,7 +39,9 @@ const common = {
   version,
   license: wrapper.license,
   homepage: wrapper.homepage,
+  bugs: wrapper.bugs,
   repository: wrapper.repository,
+  publishConfig: wrapper.publishConfig,
 };
 
 rmSync(out, { recursive: true, force: true });
@@ -104,9 +114,9 @@ const publish = (dir) => {
     console.log(`${name}@${version} is already published, skipping`);
     return;
   }
-  const args = ["publish", dir, "--access", "public", "--tag", distTag];
-  if (dryRun) args.push("--dry-run");
-  else if (process.env.GITHUB_ACTIONS) args.push("--provenance");
+  // publishConfig sets access and provenance. Provenance only works in CI, which also stops a publish from a laptop.
+  const args = ["publish", dir, "--tag", distTag];
+  if (dryRun) args.push("--dry-run", "--provenance=false");
   execFileSync("npm", args, { stdio: "inherit" });
 };
 
