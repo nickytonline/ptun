@@ -108,7 +108,8 @@ everything except Pomerium. `GET /healthz` is unauthenticated and returns 200.
 
 ### Kubernetes
 
-[`deploy/kubernetes/`](../deploy/kubernetes/) has a plain Deployment, Service and Secret placeholder:
+[`deploy/kubernetes/`](../deploy/kubernetes/) has a plain Deployment and Service, plus a Secret
+placeholder (`shared-secret.yaml.example`) that `kubectl apply` skips:
 
 1. Push the image to a registry your cluster can pull from and set `image:` in `deployment.yaml`.
 2. Fill in the `example.com` values in `deployment.yaml`.
