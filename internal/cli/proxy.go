@@ -58,7 +58,7 @@ func NewProxy(opts ProxyOptions) *Proxy {
 	p := &Proxy{opts: opts, probe: hex.EncodeToString(b), ready: make(chan struct{})}
 	p.rp = &httputil.ReverseProxy{
 		// Director (not Rewrite) so X-Forwarded-* and the Host header Pomerium sent are left alone.
-		Director: func(r *http.Request) {
+		Director: func(r *http.Request) { //nolint:staticcheck // SA1019: see the comment above
 			r.URL.Scheme = "http"
 			r.URL.Host = opts.Target
 		},

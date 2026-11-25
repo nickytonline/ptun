@@ -1,0 +1,42 @@
+version: "2"
+
+linters:
+  # standard set: errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - bodyclose
+    - errorlint
+    - gosec
+    - misspell
+    - nilerr
+    - noctx
+    - unconvert
+  settings:
+    staticcheck:
+      checks:
+        - all
+        - -ST1000 # package comments
+        - -ST1003 # naming (initialisms)
+        - -ST1005 # ptun's error strings are full user-facing sentences
+        - -QF1001 # De Morgan rewrites don't read better here
+  exclusions:
+    presets:
+      - std-error-handling
+    rules:
+      # Tests use fixed fixtures, throwaway servers and contexts where the extra checks are noise.
+      # The CLI runs ssh, the browser opener and clipboard tools, and reads its own config files, by design.
+      - path: internal/cli/
+        linters:
+          - gosec
+        text: "G204|G304"
+      # The browser opener and clipboard copy are fire-and-forget helpers with no context to pass.
+      - linters:
+          - noctx
+        text: "os/exec.Command must not be called"
+      - path: _test\.go
+        linters:
+          - gosec
+          - noctx
+
+formatters:
+  enable:
+    - gofmt

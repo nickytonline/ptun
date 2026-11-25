@@ -31,7 +31,7 @@ func Login(ctx context.Context, broker string, out io.Writer, opts LoginOptions)
 	if open == nil {
 		open = OpenBrowser
 	}
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", "127.0.0.1:0")
 	if err != nil {
 		return "", err
 	}
@@ -46,7 +46,7 @@ func Login(ctx context.Context, broker string, out io.Writer, opts LoginOptions)
 		return "", fmt.Errorf("request login url: %w", err)
 	}
 	body, _ := io.ReadAll(io.LimitReader(res.Body, 16<<10))
-	res.Body.Close()
+	_ = res.Body.Close()
 	signIn := strings.TrimSpace(string(body))
 	if res.StatusCode != http.StatusOK || !strings.HasPrefix(signIn, "http") {
 		return "", fmt.Errorf("login endpoint returned %s", res.Status)

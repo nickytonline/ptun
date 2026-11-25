@@ -95,7 +95,7 @@ func Run(ctx context.Context, o Options) (int, error) {
 		logw = o.Out
 	}
 	proxy := NewProxy(ProxyOptions{Target: o.Target, Log: logw, ShowVisitor: o.ShowVisitor})
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", "127.0.0.1:0")
 	if err != nil {
 		return 1, fmt.Errorf("start local proxy: %w", err)
 	}
@@ -182,7 +182,7 @@ loop:
 			if t.Stable && errors.As(err, &api) && api.Status == http.StatusNotFound {
 				// The lease ran out (e.g. the laptop slept through heartbeats) and the link was freed.
 				_ = cmd.Process.Signal(syscall.SIGTERM)
-				<-done
+				<-done //nolint:errcheck // ssh exits non-zero because we just stopped it
 				fmt.Fprintf(o.Out, "✖ %s expired (no heartbeat reached the server in time, e.g. after sleep). Stopped; run ptun again to get it back.\n", t.URL)
 				return 0, nil
 			}
@@ -276,7 +276,7 @@ func probeLoop(ctx context.Context, url, token string) {
 		}
 		req.Header.Set(ProbeHeader, token)
 		if res, err := hc.Do(req); err == nil {
-			res.Body.Close()
+			_ = res.Body.Close()
 		}
 		select {
 		case <-ctx.Done():

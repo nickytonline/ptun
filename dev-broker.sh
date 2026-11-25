@@ -50,4 +50,5 @@ export CONFIG_API_URLS="https://127.0.0.1:$LOCAL_PORT" DEV_AUTH_EMAIL="$EMAIL" L
 echo "broker on http://127.0.0.1:8080 as $EMAIL. In another terminal: PTUN_BROKER_URL=http://127.0.0.1:8080 ptun 3000" >&2
 # Single quotes: $TF_VAR_shared_secret_b64 expands only inside sops' child, never in this shell or its output.
 cd "$HOMELAB_K8S/terraform/pomerium-core"
+# shellcheck disable=SC2016
 sops exec-env secrets.enc.yaml 'SHARED_SECRET=$TF_VAR_shared_secret_b64 exec '"$HERE"'/bin/tunnel-broker'
