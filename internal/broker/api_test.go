@@ -62,7 +62,7 @@ func TestAPI(t *testing.T) {
 		t.Fatalf("second delete %d", c)
 	}
 	// Stable: the hostname comes from the JWT subject, never from the request body.
-	want := `"hostname":"demo-` + StableID("sub|a@x.dev", "maisonlab.dev") + `.maisonlab.dev"`
+	want := `"hostname":"demo-` + StableID("sub|a@x.dev", "example.com") + `.example.com"`
 	rec = do("POST", "/api/tunnels", "a@x.dev", `{"target":"localhost:1","name":"demo","subject":"forged"}`)
 	if rec.Code != 201 || !strings.Contains(rec.Body.String(), want) || !strings.Contains(rec.Body.String(), `"stable":true`) {
 		t.Fatalf("stable create %d %s", rec.Code, rec.Body)
@@ -77,7 +77,7 @@ func TestAPIConflictIs409(t *testing.T) {
 	f := newFake()
 	m, _ := newMgr(f)
 	f.seed("g1", "grafana")
-	f.routes["g1"].From = "https://" + StableHostname("", "sub|a@x.dev", "maisonlab.dev")
+	f.routes["g1"].From = "https://" + StableHostname("", "sub|a@x.dev", "example.com")
 	h := NewAPI(m, fakeAuth{}, m.log)
 	req := httptest.NewRequest("POST", "/api/tunnels", strings.NewReader(`{"target":"localhost:1","stable":true}`))
 	req.Header.Set("X-Test-Email", "a@x.dev")

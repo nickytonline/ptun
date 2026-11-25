@@ -7,8 +7,8 @@ import (
 
 func TestSSHArgs(t *testing.T) {
 	t.Parallel()
-	got := strings.Join(SSHArgs(Tunnel{Hostname: "t-abc123.maisonlab.dev", SSHHost: "ssh.maisonlab.dev", SSHPort: 2200}, "localhost:8081"), " ")
-	want := "-p 2200 -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=0 -R t-abc123.maisonlab.dev:443:localhost:8081 ssh.maisonlab.dev"
+	got := strings.Join(SSHArgs(Tunnel{Hostname: "t-abc123.example.com", SSHHost: "ssh.example.com", SSHPort: 2200}, "localhost:8081"), " ")
+	want := "-p 2200 -N -o ExitOnForwardFailure=yes -o ServerAliveInterval=0 -R t-abc123.example.com:443:localhost:8081 ssh.example.com"
 	if got != want {
 		t.Fatalf("got %q", got)
 	}
@@ -16,7 +16,7 @@ func TestSSHArgs(t *testing.T) {
 
 func TestNormalizeBroker(t *testing.T) {
 	t.Parallel()
-	for in, want := range map[string]string{"tunnels.maisonlab.dev": "tunnels.maisonlab.dev", "https://t.dev/": "t.dev"} {
+	for in, want := range map[string]string{"tunnels.example.com": "tunnels.example.com", "https://t.dev/": "t.dev"} {
 		if got, err := NormalizeBroker(in); err != nil || got != want {
 			t.Errorf("%q -> %q %v", in, got, err)
 		}
@@ -46,12 +46,12 @@ func TestBrokerFromInit(t *testing.T) {
 		arg, override, want string
 		wantErr             bool
 	}{
-		{"ssh.maisonlab.dev:2200", "", "tunnels.maisonlab.dev", false},
-		{"ssh.maisonlab.dev", "", "tunnels.maisonlab.dev", false},
-		{"ssh://ssh.maisonlab.dev:2200", "", "tunnels.maisonlab.dev", false},
-		{"tunnels.maisonlab.dev", "", "tunnels.maisonlab.dev", false},
-		{"https://tunnels.maisonlab.dev/", "", "tunnels.maisonlab.dev", false},
-		{"ssh.maisonlab.dev:2200", "broker.example.com", "broker.example.com", false},
+		{"ssh.example.com:2200", "", "tunnels.example.com", false},
+		{"ssh.example.com", "", "tunnels.example.com", false},
+		{"ssh://ssh.example.com:2200", "", "tunnels.example.com", false},
+		{"tunnels.example.com", "", "tunnels.example.com", false},
+		{"https://tunnels.example.com/", "", "tunnels.example.com", false},
+		{"ssh.example.com:2200", "broker.example.com", "broker.example.com", false},
 		{"pomerium.example.com:2200", "", "", true},
 	}
 	for _, c := range cases {

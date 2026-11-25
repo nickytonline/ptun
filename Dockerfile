@@ -1,4 +1,4 @@
-# tunnel-broker image. Build context: tools/ptun. Multi-arch via buildx (TARGETARCH).
+# tunnel-broker image. Build context: the repo root. Multi-arch via buildx (TARGETARCH).
 FROM golang:1.27 AS build
 WORKDIR /src
 COPY go.mod go.sum ./

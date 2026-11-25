@@ -11,14 +11,14 @@ import (
 func TestStableID(t *testing.T) {
 	t.Parallel()
 	re := regexp.MustCompile(`^[a-z0-9]{4}$`)
-	a := StableID("auth0|abc", "maisonlab.dev")
+	a := StableID("auth0|abc", "example.com")
 	if !re.MatchString(a) {
 		t.Fatalf("bad stable id %q", a)
 	}
-	if StableID("auth0|abc", "maisonlab.dev") != a {
+	if StableID("auth0|abc", "example.com") != a {
 		t.Fatal("not deterministic")
 	}
-	if StableID("auth0|abd", "maisonlab.dev") == a && StableID("auth0|abe", "maisonlab.dev") == a {
+	if StableID("auth0|abd", "example.com") == a && StableID("auth0|abe", "example.com") == a {
 		t.Fatal("different subjects give the same id")
 	}
 	seen := map[string]bool{}
@@ -28,10 +28,10 @@ func TestStableID(t *testing.T) {
 	if len(seen) < 190 {
 		t.Fatalf("ids collide too often: %d unique of 200", len(seen))
 	}
-	if got := StableHostname("", "auth0|abc", "maisonlab.dev"); got != a+".maisonlab.dev" {
+	if got := StableHostname("", "auth0|abc", "example.com"); got != a+".example.com" {
 		t.Fatalf("bare %q", got)
 	}
-	if got := StableHostname("demo", "auth0|abc", "maisonlab.dev"); got != "demo-"+a+".maisonlab.dev" {
+	if got := StableHostname("demo", "auth0|abc", "example.com"); got != "demo-"+a+".example.com" {
 		t.Fatalf("named %q", got)
 	}
 }
@@ -55,7 +55,7 @@ func TestStableTunnel(t *testing.T) {
 	f := newFake()
 	m, now := newMgr(f)
 	ctx := context.Background()
-	host := StableHostname("demo", "sub-a", "maisonlab.dev")
+	host := StableHostname("demo", "sub-a", "example.com")
 
 	// --name implies stable; no subject is refused.
 	if _, err := m.CreateWith(ctx, "a@x.dev", CreateRequest{Target: "localhost:1", Name: "demo"}); !errors.Is(err, ErrInvalidInput) {
@@ -83,14 +83,14 @@ func TestStableTunnel(t *testing.T) {
 	}
 	// A different name, and bare --stable, run side by side.
 	other, err := m.CreateWith(ctx, "a@x.dev", CreateRequest{Target: "localhost:2", Name: "other", Subject: "sub-a"})
-	if err != nil || other.Hostname != StableHostname("other", "sub-a", "maisonlab.dev") {
+	if err != nil || other.Hostname != StableHostname("other", "sub-a", "example.com") {
 		t.Fatalf("different name: %+v %v", other, err)
 	}
 	if err := m.Delete(ctx, other.ID, "a@x.dev"); err != nil {
 		t.Fatal(err)
 	}
 	bare, err := m.CreateWith(ctx, "a@x.dev", CreateRequest{Target: "localhost:4", Stable: true, Subject: "sub-a"})
-	if err != nil || bare.Hostname != StableID("sub-a", "maisonlab.dev")+".maisonlab.dev" {
+	if err != nil || bare.Hostname != StableID("sub-a", "example.com")+".example.com" {
 		t.Fatalf("bare: %+v %v", bare, err)
 	}
 	if err := m.Delete(ctx, bare.ID, "a@x.dev"); err != nil {
@@ -127,7 +127,7 @@ func TestStableTunnel(t *testing.T) {
 func TestStableHostnameNeverShadowsOtherRoutes(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	host := StableHostname("", "sub-a", "maisonlab.dev")
+	host := StableHostname("", "sub-a", "example.com")
 	from := "https://" + host
 
 	// A hand-made (or other) route already on the hostname: conflict, nothing touched.
@@ -200,7 +200,7 @@ func TestStableConcurrentStartIsConflict(t *testing.T) {
 	t.Parallel()
 	f := newFake()
 	m, now := newMgr(f)
-	host := StableHostname("demo", "sub-a", "maisonlab.dev")
+	host := StableHostname("demo", "sub-a", "example.com")
 	// Another create for the same link has reserved it but not yet created its route (routeID "").
 	m.leases["inflight"] = &lease{email: "a@x.dev", hostname: host, stable: true, expires: now.Add(m.cfg.TTL)}
 	if _, err := m.CreateWith(context.Background(), "a@x.dev", CreateRequest{Target: "localhost:1", Name: "demo", Subject: "sub-a"}); !errors.Is(err, ErrConflict) {

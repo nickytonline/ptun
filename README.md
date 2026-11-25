@@ -2,20 +2,31 @@
 
 An independent experiment, not an official Pomerium project.
 
-`cloudflared tunnel --url http://localhost:8081`, on Pomerium (#274). One command exposes a local port at a fresh URL;
+`cloudflared tunnel --url http://localhost:8081`, on Pomerium. One command exposes a local port at a fresh URL;
 the route disappears when the command stops.
 
 ```bash
-cd tools/ptun && go install ./cmd/ptun   # from a checkout (the repo is private, so no `go install ...@latest`)
-ptun init ssh.maisonlab.dev:2200    # once; derives the broker (tunnels.maisonlab.dev)
+go install github.com/nickytonline/ptun/cmd/ptun@latest
+ptun init ssh.example.com:2200      # once; derives the broker (tunnels.example.com)
 ptun 8081                           # == ptun http://localhost:8081
 ptun --public 3000                  # anyone with the link can open it, no sign-in
 ptun --mcp 3000                     # share an MCP server (prints the MCP URL for your client)
-ptun --stable 3000                  # same link every run: https://k3x9.maisonlab.dev
-ptun --name demo 3000               # same link every run, named: https://demo-k3x9.maisonlab.dev
+ptun --stable 3000                  # same link every run: https://k3x9.example.com
+ptun --name demo 3000               # same link every run, named: https://demo-k3x9.example.com
 ptun start 3000                     # same as ptun 3000
-# -> https://t-k3x9qa.maisonlab.dev   (Ctrl-C removes it)
+# -> https://t-k3x9qa.example.com   (Ctrl-C removes it)
 ```
+
+## Install
+
+```bash
+go install github.com/nickytonline/ptun/cmd/ptun@latest   # installs to $(go env GOBIN) or ~/go/bin
+```
+
+Needs Go 1.27+ and `ssh` on your `PATH`. While the repo is private, Go has to fetch it with your Git credentials
+instead of the public module proxy: `go env -w GOPRIVATE=github.com/nickytonline/ptun` once (and Git access to the repo).
+
+`ptun` needs a tunnel broker behind your Pomerium. To run one, see [docs/install.md](docs/install.md).
 
 Config lives in `os.UserConfigDir()/ptun` (`~/Library/Application Support/ptun` on macOS, `~/.config/ptun` on Linux):
 `config.json` (broker host) and `token.json` (cached Pomerium session JWT, mode 0600).
@@ -43,7 +54,7 @@ ptun --no-check 3000               # skip the "is your app running?" check
 | Flag | Default | What it does |
 |---|---|---|
 | `--public` | off | Visitors: you OR anyone (no sign-in). Refused unless the broker sets `ALLOW_PUBLIC_TUNNELS=true`. Attaching the tunnel stays creator-only. |
-| `--mcp` | off | The route fronts an MCP server (Pomerium handles the MCP sign-in). No upstream OAuth yet (#276). |
+| `--mcp` | off | The route fronts an MCP server (Pomerium handles the MCP sign-in). No upstream OAuth yet (#1). |
 | `--mcp-path <path>` | `/mcp` | Path of the MCP endpoint on your app. Used in the printed URL and the route's MCP config. |
 | `--stable` | off | Use your stable link `https://<id>.<domain>` instead of a random one. See [Stable links](#stable-links). |
 | `--name <name>` | none | Stable link with a name: `https://<name>-<id>.<domain>`. 1-32 letters, digits or hyphens. Implies `--stable`. |
@@ -60,8 +71,8 @@ The same as `ptun <port|url>`, with the same flags (`ptun start --public 3000`).
 ### `ptun init <pomerium-ssh-host>`: one-time setup
 
 ```bash
-ptun init ssh.maisonlab.dev:2200                                 # saves broker tunnels.maisonlab.dev
-ptun init ssh.maisonlab.dev:2200 --broker tunnels.example.com   # broker somewhere else
+ptun init ssh.example.com:2200                                  # saves broker tunnels.example.com
+ptun init ssh.example.com:2200 --broker broker.example.net      # broker somewhere else
 ```
 
 Give it the Pomerium SSH endpoint you'd use for `ssh -R`. `ptun` derives the broker host from it (`ssh.X` becomes
@@ -98,17 +109,17 @@ flowchart LR
 
   visitor["Visitor's browser<br/>or MCP client"]
 
-  subgraph cluster["Cluster (namespace pomerium)"]
+  subgraph server["Your Pomerium"]
     pom["Pomerium<br/>HTTPS :443 · SSH :2200"]
     broker["tunnel-broker"]
-    cfg[("Core config API :5443<br/>Raft leader")]
+    cfg[("Core config API :5443")]
   end
 
-  cli -- "1. create / heartbeat / delete<br/>https://tunnels.maisonlab.dev" --> pom
+  cli -- "1. create / heartbeat / delete<br/>https://tunnels.example.com" --> pom
   pom -- "signed JWT (who you are)" --> broker
   broker -- "2. create Policy + Route<br/>ephemeral:ID you@…" --> cfg
-  ssh -- "3. attach tunnel<br/>-R t-ID.maisonlab.dev:443" --> pom
-  visitor -- "4. https://t-ID.maisonlab.dev" --> pom
+  ssh -- "3. attach tunnel<br/>-R t-ID.example.com:443" --> pom
+  visitor -- "4. https://t-ID.example.com" --> pom
   pom -. "5. down the SSH session" .-> ssh
   ssh -.-> proxy
 ```
@@ -137,11 +148,11 @@ sequenceDiagram
   Pom->>B: request + X-Pomerium-Jwt-Assertion
   B->>B: verify JWT, email = owner
   B->>C: CreatePolicy "ephemeral:id you@…" (allow: you, or anyone with --public)
-  B->>C: CreateRoute t-id.maisonlab.dev, policy_ids, upstream_tunnel (ssh_policy: you)
+  B->>C: CreateRoute t-id.example.com, policy_ids, upstream_tunnel (ssh_policy: you)
   B-->>P: url, ssh host/port, heartbeat interval
-  P->>Pom: ssh -R t-id.maisonlab.dev:443:127.0.0.1:proxy -p 2200
+  P->>Pom: ssh -R t-id.example.com:443:127.0.0.1:proxy -p 2200
   Pom-->>P: tunnel attached
-  P-->>You: ✔ Live! https://t-id.maisonlab.dev
+  P-->>You: ✔ Live! https://t-id.example.com
 
   loop every 2 minutes
     P->>Pom: POST /api/tunnels/id/heartbeat
@@ -183,7 +194,7 @@ Headless HTTP API (`cmd/tunnel-broker`): `POST /api/tunnels`, `POST /api/tunnels
 `DELETE /api/tunnels/{id}`, unauthenticated `GET /healthz`.
 
 - Auth: `X-Pomerium-Jwt-Assertion` verified against the JWKS (`JWKS_URL`, default
-  `https://tunnels.maisonlab.dev/.well-known/pomerium/jwks.json`) with `aud` = `JWT_AUDIENCE` (the broker host). The
+  `https://<BROKER_HOST>/.well-known/pomerium/jwks.json`) with `aud` = `JWT_AUDIENCE` (the broker host). The
   `email` claim is the owner and `sub` is the source of the stable id. Only heartbeat/delete by the creating email.
 - Policy and route: Core ignores `Route.ppl_policies` for routes stored through the config API and only enforces
   `policy_ids`. So each tunnel gets a Policy `ephemeral:<id> <email>` (`source_ppl`: `allow: and: - email: is: <email>`),
@@ -191,12 +202,11 @@ Headless HTTP API (`cmd/tunnel-broker`): `POST /api/tunnels`, `POST /api/tunnels
   (or the [stable hostname](#stable-links), checked against every existing route first),
   `allow_websockets`, and the same PPL inline in `upstream_tunnel.ssh_policy` (which Core does honour). If the route
   cannot be created the policy is deleted.
-- Config API: Connect `ConfigService` via `sdk-go` with `SHARED_SECRET` (base64) as the API token, like the Terraform
-  provider. `CONFIG_API_URLS` lists the members; only the Raft leader answers, so each call tries them in order starting
-  with the last that worked. TLS verification is skipped for now (the cert is derived from the shared secret);
+- Config API: Connect `ConfigService` via `sdk-go` with `SHARED_SECRET` (base64) as the API token, like the Pomerium
+  Terraform provider. `CONFIG_API_URLS` lists the endpoints (with a clustered databroker only the Raft leader answers), and
+  each call tries them in order starting with the last that worked. TLS verification is skipped for now (the cert is derived from the shared secret);
   `CONFIG_API_TLS_VERIFY=true` is reserved for the follow-up (TODO in `internal/broker/client.go`).
-- Env: `BASE_DOMAIN`, `BROKER_HOST`, `SSH_HOST`, `SSH_PORT`, `TUNNEL_TTL` (10m), `HEARTBEAT_INTERVAL` (2m),
-  `MAX_TUNNELS_PER_USER` (5), `ALLOW_PUBLIC_TUNNELS` (false), `ALLOW_MCP_TUNNELS` (true), `ROUTE_PREFIX` (`ephemeral:`), `LISTEN_ADDR`.
+- Settings are environment variables; see [docs/install.md](docs/install.md#2-settings).
 
 ## What you see
 
@@ -205,7 +215,7 @@ Headless HTTP API (`cmd/tunnel-broker`): `POST /api/tunnels`, `POST /api/tunnels
 ✔ Created your link
 ⏳ Connecting… (if a sign-in link appears below, open it)
 ✔ Live! Your app on localhost:3000 is at:
-    https://t-k3x9qa.maisonlab.dev      (copied to clipboard)
+    https://t-k3x9qa.example.com      (copied to clipboard)
   Who can open it: only you, after signing in
   Press Ctrl-C to stop sharing.
 13:04:05  GET     /api/items  200  12ms
@@ -231,9 +241,9 @@ Headless HTTP API (`cmd/tunnel-broker`): `POST /api/tunnels`, `POST /api/tunnels
 so you can bookmark it, paste it into a webhook or OAuth config once, and keep it.
 
 ```
-ptun --stable 3000       ->  https://k3x9.maisonlab.dev
-ptun --name demo 3000    ->  https://demo-k3x9.maisonlab.dev
-ptun --name api 8080     ->  https://api-k3x9.maisonlab.dev
+ptun --stable 3000       ->  https://k3x9.example.com
+ptun --name demo 3000    ->  https://demo-k3x9.example.com
+ptun --name api 8080     ->  https://api-k3x9.example.com
 ```
 
 - **`k3x9` is your id**, the same for every name. The broker computes it as 4 base36 characters of
@@ -260,15 +270,13 @@ ptun --name api 8080     ->  https://api-k3x9.maisonlab.dev
 `Route.mcp = {server: {path: <mcp_path>}}` (`MCPServer.path` is the path Pomerium appends when it lists the server URL, so
 it is the endpoint clients should use) with no `upstream_oauth2`. The CLI prints `MCP server URL: <url><path>`, copies
 that instead of the bare URL, and hints to add it to your MCP client as a remote MCP server (it signs you in through
-Pomerium). Needs the `mcp` runtime flag in Pomerium, which the homelab already has on for the `mcp_tunnel` route. Gate:
+Pomerium). Needs the `mcp` runtime flag in Pomerium. Gate:
 `ALLOW_MCP_TUNNELS` (default true). Public and MCP can be combined if public is allowed.
 
 ## Public tunnels
 
-`ptun --public 3000` sends `{"target":..., "public": true}`. The broker only honours it when `ALLOW_PUBLIC_TUNNELS=true`
-(set in `clusters/talos/tunnel-broker/deployment.yaml`); otherwise it answers 403 "public tunnels are disabled on this
-broker", which the CLI prints as is. A public tunnel's visitor policy has the same shape as the Terraform `public`
-policy: `[{allow: {or: [{email: {is: <creator>}}, {accept: true}]}}, {allow: {and: [{cors_preflight: true}]}}]`
+`ptun --public 3000` sends `{"target":..., "public": true}`. The broker only honours it when `ALLOW_PUBLIC_TUNNELS=true`;
+otherwise it answers 403 "public tunnels are disabled on this broker", which the CLI prints as is. A public tunnel's visitor policy has this shape: `[{allow: {or: [{email: {is: <creator>}}, {accept: true}]}}, {allow: {and: [{cors_preflight: true}]}}]`
 (emitted as JSON). Who may attach the tunnel (`upstream_tunnel.ssh_policy`) stays creator-only in both cases. Names stay
 `ephemeral:<id> <email>`; the description says "public tunnel" or "private tunnel". The CLI prints
 `PUBLIC: anyone with this link can open it, no sign-in.` under the URL box, and the broker logs `public` on creation.
@@ -276,16 +284,16 @@ Response JSON gains `"public"`, `"mcp"`, `"mcp_path"` and `"email"` (the authent
 
 ## Security notes
 
-- The broker holds `shared_secret`, which is full admin over Pomerium Core. It runs in the `pomerium` namespace, reads the
-  existing `pomerium-core` Secret (no copy), and is reachable only from the Pomerium pod (NetworkPolicy
-  `tunnel-broker-ingress`). Who may create tunnels is the policy of the `tunnel_broker` route (me_only).
+- The broker holds `shared_secret`, which is full admin over Pomerium Core. It trusts `X-Pomerium-Jwt-Assertion`, so
+  only Pomerium may be able to reach it (in Kubernetes, a NetworkPolicy that admits only the Pomerium pods). Who may
+  create tunnels is the policy on the broker's own Pomerium route.
 - Invariant: the broker only ever creates, adopts or deletes objects it owns. Ownership needs BOTH the name prefix
   (`ROUTE_PREFIX`, default `ephemeral:`; must end with `:`) AND the description marker `managed by tunnel-broker`. It is
   enforced in one place (`Routes.guard` in `internal/broker/routes.go`): `Create` checks the route it is about to make,
   and route delete, policy delete, adopt (`ListManaged`) and the orphan-policy sweep all re-read the object and check
   prefix and marker. A hand-made route or policy named `ephemeral: something` has no marker, so it is never adopted or
   deleted.
-- The `pomerium-raft-peers` NetworkPolicy opens 5443 to the broker pod.
+- The broker needs to reach the config API (Core's `grpc_address`, 5443) on every member.
 
 ## Cleanup model
 
@@ -298,19 +306,18 @@ deletes `ephemeral:*` policies that no `ephemeral:*` route references and no lea
 
 | What you see | Likely cause | What to check |
 |---|---|---|
-| `isn't responding (503 Service Unavailable)` (also 502/504) | The broker route exists, but the broker behind it isn't running, isn't ready, or is failing. Sign-in already worked. | `kubectl -n pomerium get pods -l app.kubernetes.io/name=tunnel-broker` and `kubectl -n pomerium logs deploy/tunnel-broker`. Common: `ImagePullBackOff` (image not in the in-cluster registry), a crash at startup (`SHARED_SECRET` missing, bad `ROUTE_PREFIX`), or the NetworkPolicy not admitting Pomerium. |
-| `no tunnel broker at https://... (404)` | No Pomerium route for the broker host. | `ptun init` used the wrong host, or the `tunnel_broker` route isn't applied (`terraform/pomerium-core`). |
+| `isn't responding (503 Service Unavailable)` (also 502/504) | The broker route exists, but the broker behind it isn't running, isn't ready, or is failing. Sign-in already worked. | The broker's status and logs (`kubectl -n <ns> logs deploy/tunnel-broker`). Common: the image can't be pulled, a crash at startup (a required setting missing, bad `ROUTE_PREFIX`), or the NetworkPolicy not admitting Pomerium. |
+| `no tunnel broker at https://... (404)` | No Pomerium route for the broker host. | `ptun init` used the wrong host, or the broker's Pomerium route doesn't exist. |
 | `Can't reach your organization's ptun service` | DNS or network: the broker host doesn't answer at all. | Your connection, and that `tunnels.<domain>` resolves. |
-| Broker logs `config API` errors | It can't reach the Raft leader on 5443. | The `tunnel-broker` rule in `clusters/talos/pomerium-core-ha/networkpolicy-peers.yaml` is applied; all three Pomerium members are up. |
+| Broker logs `config API` errors | It can't reach the Raft leader on 5443. | `CONFIG_API_URLS` is right and nothing (a NetworkPolicy, a firewall) blocks the broker from 5443 on every member; the members are up. |
 | Broker logs JWT/JWKS errors, `ptun` gets 401/403 after signing in | It can't fetch or match Pomerium's signing keys. | Set `JWKS_URL` to a URL reachable from the pod; check `JWT_AUDIENCE` matches the broker host. |
-| `Connection to ssh... closed by remote host` ~30s after start | The SSH sign-in account differs from the tunnel's owner, or an SSH sign-in prompt was hidden (#277). | Sign in to SSH as the account `ptun` shows in "Signed in as". |
+| `Connection to ssh... closed by remote host` ~30s after start | The SSH sign-in account differs from the tunnel's owner, or an SSH sign-in prompt was hidden (#2). | Sign in to SSH as the account `ptun` shows in "Signed in as". |
 
 ## Development
 
 ### Build and test
 
 ```bash
-cd tools/ptun
 go vet ./... && go test -race ./...
 go build -o bin/ptun ./cmd/ptun && go build -o bin/tunnel-broker ./cmd/tunnel-broker   # bin/ is gitignored
 go install ./cmd/ptun   # use your local build as `ptun`: installs to $(go env GOBIN) or ~/go/bin, no sudo
@@ -318,106 +325,43 @@ go install ./cmd/ptun   # use your local build as `ptun`: installs to $(go env G
 
 ## Running the broker
 
-The same `tunnel-broker` binary runs in two modes. Users only ever run `ptun`; the broker is the service behind it.
+Users only ever run `ptun`; the broker is the service behind it. To run one next to your Pomerium (prerequisites,
+settings, Docker and Kubernetes), see [docs/install.md](docs/install.md).
 
-| | Deploy mode (cluster) | Dev mode (your laptop) |
-|---|---|---|
-| Where | Deployment `tunnel-broker` in namespace `pomerium` (Argo app `tunnel-broker`) | `tools/ptun/dev-broker.sh` |
-| How `ptun` reaches it | `https://tunnels.maisonlab.dev` through Pomerium (route in `terraform/pomerium-core/routes.tf`) | `PTUN_BROKER_URL=http://127.0.0.1:8080` |
-| Who the caller is | Pomerium's signed JWT (`X-Pomerium-Jwt-Assertion`), verified against the JWKS | `DEV_AUTH_EMAIL` (no verification; loopback only) |
-| Config API | Pod network to `pomerium-N.pomerium-headless:5443` (NetworkPolicy `pomerium-core-ha/networkpolicy-peers.yaml`) | `kubectl port-forward` to the Raft leader |
-| Shared secret | `SHARED_SECRET` from the existing `pomerium-core` Secret (`secretKeyRef`) | `sops exec-env` on `terraform/pomerium-core/secrets.enc.yaml` (1Password prompt) |
-| Use it for | Everyday use | Testing broker or CLI changes before merging |
-
-Both modes create real `ephemeral:*` routes and policies in Pomerium.
-
-### Deploy mode (cluster)
-
-Manifests: `clusters/talos/tunnel-broker/` (Deployment, Service, NetworkPolicy that admits only Pomerium) and
-`clusters/talos/argocd/apps/tunnel-broker.yaml` (auto-sync).
-
-The image is in-house: `tools/ptun/build-image.sh [tag]` builds it for amd64 and arm64 (the Pi is arm64) and pushes it to
-the in-cluster registry (`192.168.86.90:30500`, plain HTTP; it creates a `homelab-registry` buildx builder the first
-time). Talos mirrors `docker.io` through that registry, so `deployment.yaml` references
-`docker.io/library/tunnel-broker:<tag>@sha256:<digest>`, the same pattern as `pomerium-homelab`. The script prints that
-line. The image only pulls while the registry pod is up. CI (`.github/workflows/tunnel-broker-image.yml`) runs the
-tests and checks the image builds, and pushes nothing.
-
-First deploy, after the PR is merged (on the LAN, `KUBECONFIG=~/.kube/talos-direct.yaml` or `talos-maison.yaml`):
-
-```bash
-# 1. The image named in deployment.yaml must be in the in-cluster registry (build-image.sh, then pin the printed line).
-
-# 2. Pick up the new Argo app (the root app is manual sync), which then deploys the broker:
-kubectl -n argocd patch application root --type merge -p '{"operation":{"sync":{}}}'
-
-# 3. Let the broker reach the config API (the pomerium app is manual sync; NetworkPolicy change only, no restart):
-kubectl -n argocd patch application pomerium --type merge -p '{"operation":{"sync":{}}}'
-
-# 4. Check it: JWKS fetch and finding the Raft leader show up in the logs
-kubectl -n pomerium rollout status deploy/tunnel-broker
-kubectl -n pomerium logs deploy/tunnel-broker | tail
-
-# 5. Create the tunnels.maisonlab.dev route (approve the 1Password prompt), then commit the state right away:
-cd terraform/pomerium-core && git pull && ./tf.sh apply
-
-# 6. Use it
-ptun init ssh.maisonlab.dev:2200 && ptun 3000
-```
-
-Updating: run `tools/ptun/build-image.sh` on the change, put the printed `image:` line in `deployment.yaml`, and merge
-(Argo auto-syncs it). Restarting the broker doesn't break live tunnels: on startup it adopts existing
-`ephemeral:*` routes with a fresh lease, and clients keep sending heartbeats.
-
-Settings (env on the Deployment):
-
-| Variable | Default | What it does |
-|---|---|---|
-| `SHARED_SECRET` | (required) | Core's shared secret (base64), the config API token. From the `pomerium-core` Secret. |
-| `CONFIG_API_URLS` | `https://pomerium-{0,1,2}.pomerium-headless:5443` | Config API endpoints, comma-separated. Only the Raft leader answers; each call tries them in order. |
-| `CONFIG_API_TLS_VERIFY` | `false` | Verify the config API cert. Reserved: the cert is derived from the shared secret (TODO in `internal/broker/client.go`). |
-| `BROKER_HOST` | `tunnels.maisonlab.dev` | The broker's own route host; used for the default JWKS URL and audience. |
-| `JWKS_URL` | `https://<BROKER_HOST>/.well-known/pomerium/jwks.json` | Where to fetch Pomerium's signing keys. Override if that URL doesn't resolve from inside the cluster. |
-| `JWT_AUDIENCE` | `<BROKER_HOST>` | Expected `aud` of the JWT. |
-| `BASE_DOMAIN` | `maisonlab.dev` | Tunnel hosts are `t-<id>.<BASE_DOMAIN>`. Needs wildcard DNS and a wildcard cert. |
-| `SSH_HOST` / `SSH_PORT` | `ssh.maisonlab.dev` / `2200` | Pomerium SSH endpoint returned to `ptun`. |
-| `ROUTE_PREFIX` | `ephemeral:` | Name prefix of the routes and policies the broker owns (must end with `:`). |
-| `TUNNEL_TTL` | `10m` | A tunnel with no heartbeat for this long is deleted. |
-| `HEARTBEAT_INTERVAL` | `2m` | How often `ptun` sends heartbeats (returned to the client). |
-| `MAX_TUNNELS_PER_USER` | `5` | Live tunnels per email. |
-| `ALLOW_PUBLIC_TUNNELS` | `false` | Allow `--public`. The homelab Deployment sets `true`. |
-| `ALLOW_MCP_TUNNELS` | `true` | Allow `--mcp`. |
-| `LISTEN_ADDR` | `:8080` | HTTP listen address. |
-| `DEV_AUTH_EMAIL` | (unset) | Dev mode only; never set it on the Deployment (the broker refuses it unless `LISTEN_ADDR` is loopback). |
-
-Who may create tunnels is the policy on the broker's own route (`tunnel_broker` in `routes.tf`, Me Only today).
+Restarting the broker doesn't break live tunnels: on startup it adopts existing `ephemeral:*` routes with a fresh lease,
+and clients keep sending heartbeats.
 
 ### Dev mode (your laptop)
 
-Runs `tunnel-broker` locally against the real Pomerium Core, so you can test broker or CLI changes before merging.
-Needs cluster access (on the LAN, or the minime-2 tunnel) and the SOPS admin key (1Password prompt).
+Run `tunnel-broker` locally against a real Pomerium Core to test broker or CLI changes. Both modes create real
+`ephemeral:*` routes and policies.
 
 ```bash
 # Terminal 1: the broker. Use the email you sign in to Pomerium with (it must match your SSH sign-in too).
-tools/ptun/dev-broker.sh you@example.com
+go build -o bin/tunnel-broker ./cmd/tunnel-broker
+SHARED_SECRET=... CONFIG_API_URLS=https://127.0.0.1:5443 \
+  BROKER_HOST=tunnels.example.com BASE_DOMAIN=example.com SSH_HOST=ssh.example.com \
+  DEV_AUTH_EMAIL=you@example.com LISTEN_ADDR=127.0.0.1:8080 ALLOW_PUBLIC_TUNNELS=true \
+  bin/tunnel-broker
 
 # Terminal 2: point ptun at it (all the usual flags work)
 PTUN_BROKER_URL=http://127.0.0.1:8080 ptun 3000
 ```
 
-What `dev-broker.sh` does:
-- Finds the Raft leader and port-forwards to its config API on `127.0.0.1:15444` (not 15443, so it can run next to
-  `tf.sh`). Set `PF_POD=pomerium-N` to pick the pod yourself.
-- Rebuilds `bin/tunnel-broker` from your working tree, so it always runs your current code.
-- Starts the broker under `sops exec-env`, so the shared secret only exists in the broker's environment and is never printed.
-- Sets `DEV_AUTH_EMAIL` (no Pomerium in front, so no JWT; every request is that email), `LISTEN_ADDR=127.0.0.1:8080`
-  and `ALLOW_PUBLIC_TUNNELS=true`. The broker refuses `DEV_AUTH_EMAIL` unless it listens on loopback.
-  `PTUN_BROKER_URL` makes `ptun` talk plain HTTP to `127.0.0.1`/`localhost` only and skip sign-in.
+- `CONFIG_API_URLS` must reach Core's config API, for example through a port-forward.
+- `DEV_AUTH_EMAIL` turns JWT verification off (no Pomerium in front, so no JWT; every request is that email). The
+  broker refuses it unless `LISTEN_ADDR` is loopback.
+- `PTUN_BROKER_URL` makes `ptun` talk plain HTTP to `127.0.0.1`/`localhost` only and skip sign-in.
+- Don't put the shared secret in your shell history; load it from a secret manager into the broker's environment.
 
 Ctrl-C on `ptun` deletes its own route and policy. If you stop the broker first, the deployed broker (or the next local
 run) adopts the leftovers and deletes them after the 10 minute TTL.
 
-**Don't run a dev broker while the deployed broker is running.** At startup each broker adopts every existing
+**Don't run a dev broker while a deployed broker is running.** At startup each broker adopts every existing
 `ephemeral:*` route, but `ptun` only sends heartbeats to the broker that created its tunnel. So a dev broker deletes the
-deployed broker's live tunnels 10 minutes after it starts, and the other way round (#277). Scale the deployed broker to
+deployed broker's live tunnels 10 minutes after it starts, and the other way round (#2). Scale the deployed broker to
 0 while testing, or test against a different `ROUTE_PREFIX` (for example `ROUTE_PREFIX=dev-ephemeral:`).
+
+## License
+
+[Apache License 2.0](LICENSE).

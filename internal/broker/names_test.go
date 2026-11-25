@@ -20,7 +20,7 @@ func TestNewIDAndHostname(t *testing.T) {
 	if len(seen) < 40 {
 		t.Fatalf("ids not random enough: %d unique", len(seen))
 	}
-	if got := Hostname("abc123", "maisonlab.dev"); got != "t-abc123.maisonlab.dev" {
+	if got := Hostname("abc123", "example.com"); got != "t-abc123.example.com" {
 		t.Fatalf("hostname %q", got)
 	}
 }

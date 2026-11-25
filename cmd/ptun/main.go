@@ -1,5 +1,5 @@
 // Command ptun exposes a local port at a fresh Pomerium URL, like
-// `cloudflared tunnel --url`. See tools/ptun/README.md.
+// `cloudflared tunnel --url`. See README.md.
 package main
 
 import (
@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/nickytonline/homelab-k8s/tools/ptun/internal/cli"
+	"github.com/nickytonline/ptun/internal/cli"
 )
 
 func main() {
@@ -31,7 +31,7 @@ const rootLong = `ptun shares an app running on your computer at a web address.
 Press Ctrl-C to stop sharing.
 
 First time? Run the setup command your admin gave you, e.g.
-  ptun init ssh.maisonlab.dev:2200`
+  ptun init ssh.example.com:2200`
 
 type runFlags struct {
 	public, quiet, showVisitor, noCheck, mcp, stable bool
@@ -112,9 +112,9 @@ func newInitCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init <pomerium-ssh-host>",
 		Short: "Save your Pomerium SSH endpoint (the tunnel broker is derived from it)",
-		Long: "Give the Pomerium SSH endpoint you use for `ssh -R` (e.g. ssh.maisonlab.dev:2200).\n" +
+		Long: "Give the Pomerium SSH endpoint you use for `ssh -R` (e.g. ssh.example.com:2200).\n" +
 			"ptun derives the tunnel broker from it (ssh.X -> tunnels.X). Use --broker if yours lives elsewhere.",
-		Example: "  ptun init ssh.maisonlab.dev:2200\n  ptun init ssh.maisonlab.dev:2200 --broker tunnels.example.com",
+		Example: "  ptun init ssh.example.com:2200\n  ptun init ssh.example.com:2200 --broker tunnels.example.com",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			host, err := cli.BrokerFromInit(args[0], broker)

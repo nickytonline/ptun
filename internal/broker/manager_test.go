@@ -102,7 +102,7 @@ func (f *fakeAPI) seedHand(id, name string) {
 	f.pols[id] = &configpb.Policy{Id: &id, Name: &name}
 }
 
-var testCfg = Config{AllowMCP: true, BaseDomain: "maisonlab.dev", SSHHost: "ssh.maisonlab.dev", SSHPort: 2200, TTL: 10 * time.Minute, HeartbeatInterval: 2 * time.Minute, MaxPerUser: 2}
+var testCfg = Config{AllowMCP: true, BaseDomain: "example.com", SSHHost: "ssh.example.com", SSHPort: 2200, TTL: 10 * time.Minute, HeartbeatInterval: 2 * time.Minute, MaxPerUser: 2}
 
 func newMgr(f ...*fakeAPI) (*Manager, *time.Time) {
 	var clients []routeClient

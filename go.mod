@@ -1,4 +1,4 @@
-module github.com/nickytonline/homelab-k8s/tools/ptun
+module github.com/nickytonline/ptun
 
 go 1.27.1
 

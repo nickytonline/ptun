@@ -1,0 +1,50 @@
+# tunnel-broker: creates and deletes ephemeral:* Pomerium routes for ptun. See docs/install.md.
+# Replace the image and every example.com value. Only Pomerium should be able to reach this pod (NetworkPolicy).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tunnel-broker
+  labels: {app.kubernetes.io/name: tunnel-broker}
+spec:
+  replicas: 1   # leases are in memory; a second replica would split them and sweep each other's tunnels
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app.kubernetes.io/name: tunnel-broker}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: tunnel-broker}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: tunnel-broker
+          image: registry.example.com/tunnel-broker:CHANGE-ME   # built from this repo's Dockerfile
+          ports: [{name: http, containerPort: 8080}]
+          env:
+            - name: SHARED_SECRET
+              valueFrom: {secretKeyRef: {name: tunnel-broker, key: SHARED_SECRET}}
+            - {name: CONFIG_API_URLS, value: "https://pomerium.example.svc.cluster.local:5443"}
+            - {name: BROKER_HOST, value: tunnels.example.com}
+            - {name: BASE_DOMAIN, value: example.com}
+            - {name: SSH_HOST, value: ssh.example.com}
+            - {name: SSH_PORT, value: "2200"}
+            - {name: ALLOW_PUBLIC_TUNNELS, value: "false"}
+            - {name: ALLOW_MCP_TUNNELS, value: "true"}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {memory: 128Mi}
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            initialDelaySeconds: 5
+            periodSeconds: 20

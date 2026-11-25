@@ -12,7 +12,7 @@ import (
 
 // Config is the saved CLI configuration.
 type Config struct {
-	Broker string `json:"broker"` // broker host, e.g. tunnels.maisonlab.dev
+	Broker string `json:"broker"` // broker host, e.g. tunnels.example.com
 }
 
 type tokenCache struct {
@@ -51,7 +51,7 @@ func NormalizeBroker(s string) (string, error) {
 	s = strings.TrimPrefix(s, "https://")
 	s = strings.TrimSuffix(s, "/")
 	if s == "" || strings.ContainsAny(s, "/ ?#@") || strings.Contains(s, "://") {
-		return "", fmt.Errorf("invalid broker host %q (want e.g. tunnels.maisonlab.dev)", s)
+		return "", fmt.Errorf("invalid broker host %q (want e.g. tunnels.example.com)", s)
 	}
 	return s, nil
 }

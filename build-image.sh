@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Build the tunnel-broker image (amd64 + arm64, the Pi is arm64) and push it to the in-cluster registry.
 #
-#   tools/ptun/build-image.sh            # tag: git-<short sha> of HEAD
-#   tools/ptun/build-image.sh pr-275     # any tag
+#   ./build-image.sh            # tag: git-<short sha> of HEAD
+#   ./build-image.sh pr-275     # any tag
 #
-# Talos mirrors docker.io through the registry (terraform/talos/patches/common.yaml, NodePort 30500, plain HTTP), so the
+# Homelab defaults: Talos mirrors docker.io through the registry (homelab-k8s terraform/talos/patches/common.yaml, NodePort 30500, plain HTTP), so the
 # Deployment references docker.io/library/tunnel-broker:<tag>@sha256:<digest>, the same pattern as pomerium-homelab.
-# The image only pulls while the registry pod is up (TODO.md: move to GHCR / retire the registry).
+# The image only pulls while the registry pod is up (homelab-k8s TODO.md: move to GHCR / retire the registry).
+# Elsewhere, set REGISTRY to your own registry.
 set -euo pipefail
 
 REGISTRY=${REGISTRY:-192.168.86.90:30500}
@@ -32,5 +33,5 @@ digest=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['contai
 
 echo
 echo "Pushed $IMAGE"
-echo "Set the image in clusters/talos/tunnel-broker/deployment.yaml to:"
+echo "Set the image in your Deployment (homelab-k8s: clusters/talos/tunnel-broker/deployment.yaml) to:"
 echo "  docker.io/library/tunnel-broker:$TAG@$digest"
