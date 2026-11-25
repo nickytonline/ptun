@@ -1,5 +1,12 @@
 # ptun
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/ptun-banner-dark.png">
+    <img src="docs/images/ptun-banner.png" alt="ptun startup banner: a pixel-art Pomeranian in sunglasses above the word PTUN" width="240">
+  </picture>
+</p>
+
 An independent experiment, not an official Pomerium project.
 
 `cloudflared tunnel --url http://localhost:8081`, on Pomerium. One command exposes a local port at a fresh URL;
@@ -78,9 +85,10 @@ ptun --no-check 3000               # skip the "is your app running?" check
 | `--mcp-path <path>` | `/mcp` | Path of the MCP endpoint on your app. Used in the printed URL and the route's MCP config. |
 | `--stable` | off | Use your stable link `https://<id>.<domain>` instead of a random one. See [Stable links](#stable-links). |
 | `--name <name>` | none | Stable link with a name: `https://<name>-<id>.<domain>`. 1-32 letters, digits or hyphens. Implies `--stable`. |
-| `--quiet` | off | Don't print a line per request. The link and status lines still print. |
+| `--quiet` | off | Don't print a line per request. The link, status lines and startup banner still print. |
 | `--show-visitor` | off | Append the visitor's email (from Pomerium's identity header, display only) to each log line. |
 | `--no-check` | off | Don't check that something is listening on the port before creating the link. |
+| `--no-banner` | off | Don't show the Pomeranian at startup. It only shows in an interactive terminal with 24-bit color (`COLORTERM=truecolor`, or a terminal known to support it such as iTerm2, Ghostty, kitty, WezTerm or VS Code). It never shows when `NO_COLOR` is set, when `CI` or `PTUN_NO_BANNER` is set to anything but `0` or `false`, or when `TERM=dumb`. |
 
 Flags can go before or after the port.
 
