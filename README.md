@@ -65,10 +65,10 @@ ptun --no-check 3000               # skip the "is your app running?" check
 | `--mcp-path <path>` | `/mcp` | Path of the MCP endpoint on your app. Used in the printed URL and the route's MCP config. |
 | `--stable` | off | Use your stable link `https://<id>.<domain>` instead of a random one. See [Stable links](#stable-links). |
 | `--name <name>` | none | Stable link with a name: `https://<name>-<id>.<domain>`. 1-32 letters, digits or hyphens. Implies `--stable`. |
-| `--quiet` | off | Don't print a line per request. The link and status lines still print. |
+| `--quiet` | off | Don't print a line per request. The link, status lines and startup banner still print. |
 | `--show-visitor` | off | Append the visitor's email (from Pomerium's identity header, display only) to each log line. |
 | `--no-check` | off | Don't check that something is listening on the port before creating the link. |
-| `--no-banner` | off | Don't show the Pomeranian at startup. It only shows in an interactive terminal, and never when `NO_COLOR`, `CI` or `PTUN_NO_BANNER` is set. |
+| `--no-banner` | off | Don't show the Pomeranian at startup. It only shows in an interactive terminal with at least 256 colors (`COLORTERM=truecolor` or a `TERM` containing `256color`). It never shows when `NO_COLOR` is set, when `CI` or `PTUN_NO_BANNER` is set to anything but `0` or `false`, or when `TERM=dumb`. |
 
 Flags can go before or after the port.
 

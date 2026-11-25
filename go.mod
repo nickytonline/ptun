@@ -7,6 +7,7 @@ toolchain go1.27.4
 require (
 	connectrpc.com/connect v1.21.1
 	github.com/go-jose/go-jose/v3 v3.0.5
+	github.com/mattn/go-isatty v0.0.24
 	github.com/pomerium/pomerium/pkg/grpc/config v0.34.1
 	github.com/pomerium/sdk-go v0.0.10-0.20261110022632-86aa3a97e480
 	github.com/spf13/cobra v1.10.2
@@ -26,7 +27,6 @@ require (
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.16 // indirect
-	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/oapi-codegen/runtime v1.8.0 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/pomerium/pomerium/pkg/grpc/databroker v0.34.1-0.20261110012034-bfab9866f123 // indirect
