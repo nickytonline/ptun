@@ -28,7 +28,7 @@ vuln:
 	$(GOVULNCHECK) ./...
 
 shellcheck:
-	shellcheck build-image.sh dev-broker.sh
+	shellcheck build-image.sh dev-broker.sh install.sh
 
 build:
 	go build -o bin/ptun ./cmd/ptun

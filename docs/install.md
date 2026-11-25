@@ -82,7 +82,15 @@ Run **one** broker per Pomerium. Leases live in memory, and every broker adopts 
 so a second broker would delete the first one's live tunnels after `TUNNEL_TTL`. A restart is fine: the broker adopts
 existing routes with a fresh lease and clients keep heartbeating.
 
-Build the image from the repo root (multi-arch with `docker buildx build --platform linux/amd64,linux/arm64`):
+Each release publishes a multi-arch (`linux/amd64`, `linux/arm64`) image to GHCR, tagged with the version
+(without the `v`). Stable releases also move `latest`; release candidates (`1.0.0-rc.1`) only get their version tag:
+
+```bash
+docker pull ghcr.io/nickytonline/tunnel-broker:latest
+```
+
+Pin a version (or a digest) in production rather than `latest`. To build the image yourself from the repo root
+(multi-arch with `docker buildx build --platform linux/amd64,linux/arm64`):
 
 ```bash
 docker build -t tunnel-broker:local .
@@ -100,7 +108,7 @@ docker run -d --name tunnel-broker --restart unless-stopped \
   -e BASE_DOMAIN=example.com \
   -e SSH_HOST=ssh.example.com \
   -e SSH_PORT=2200 \
-  tunnel-broker:local
+  ghcr.io/nickytonline/tunnel-broker:1.0.0  # the version you're running, without the v
 ```
 
 How you wire the two together depends on where Pomerium runs:
@@ -123,7 +131,8 @@ Either way, keep port 8080 closed to everything except Pomerium: the broker hold
 [`deploy/kubernetes/`](../deploy/kubernetes/) has a plain Deployment and Service, plus a Secret
 placeholder (`shared-secret.yaml.example`) that `kubectl apply` skips:
 
-1. Push the image to a registry your cluster can pull from and set `image:` in `deployment.yaml`.
+1. Set `image:` in `deployment.yaml` to a released version of `ghcr.io/nickytonline/tunnel-broker` (or your own
+   build in a registry your cluster can pull from).
 2. Fill in the `example.com` values in `deployment.yaml`.
 3. Put the shared secret in the Secret without committing it, for example:
    `kubectl -n <ns> create secret generic tunnel-broker --from-literal=SHARED_SECRET="$SHARED_SECRET"`.
