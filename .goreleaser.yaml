@@ -74,12 +74,19 @@ homebrew_casks:
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com
+    # `brew uninstall --zap ptun` also removes ptun's config (os.UserConfigDir()/ptun). Without a zap list,
+    # GoReleaser writes `zap :not_required`, which Homebrew 6 rejects.
+    zap:
+      trash:
+        - "~/Library/Application Support/ptun"
+        - "~/.config/ptun"
     # The binary isn't signed or notarized, so clear the quarantine flag that macOS would otherwise block it on.
     hooks:
       post:
+        # postflight_steps only accepts Homebrew's install-step DSL, not Ruby. chdir "." is the cask's staged path.
         install_steps: |
-          if OS.mac? && system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/ptun"]
+          on_macos do
+            run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "ptun"], chdir: "."
           end
 
 nfpms:

@@ -83,7 +83,7 @@ so a second broker would delete the first one's live tunnels after `TUNNEL_TTL`.
 existing routes with a fresh lease and clients keep heartbeating.
 
 Each release publishes a multi-arch (`linux/amd64`, `linux/arm64`) image to GHCR, tagged with the version
-(without the `v`) and `latest`:
+(without the `v`). Stable releases also move `latest`; release candidates (`1.0.0-rc.1`) only get their version tag:
 
 ```bash
 docker pull ghcr.io/nickytonline/tunnel-broker:latest

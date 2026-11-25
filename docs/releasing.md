@@ -30,7 +30,8 @@ Tags with a suffix (`v0.2.0-rc.1`) are prereleases: the GitHub Release is marked
    `npm` job's GitHub OIDC identity, so there's no long-lived token, and each package gets a provenance attestation.
    A trusted publisher can only be added to a package that already exists, so the first release needs a token once:
    1. Add an `NPM_TOKEN` secret: a granular access token with read and write access to `ptun` and the
-      `@nickytonline` scope (your npm username), with a short expiry.
+      `@nickytonline` scope (your npm username), with a short expiry. Turn on **Bypass two-factor
+      authentication**: CI can't answer a 2FA prompt, so without it the publish fails.
    2. Run the first release. The `npm` job creates the `npm` environment if it doesn't exist; you can add required
       reviewers to it under **Settings → Environments**.
    3. For each of the 7 packages (`ptun` and `@nickytonline/ptun-{darwin,linux,win32}-{x64,arm64}`), open
@@ -60,4 +61,8 @@ GoReleaser publishes the GitHub Release first, then the cask and image. npm runs
 
 - **npm job failed:** fix the cause (usually a missing or mismatched trusted publisher) and re-run just that job from the Actions page. The script
   skips packages whose version is already on npm, so a re-run finishes a partial publish.
-- **GoReleaser failed:** delete the GitHub Release and the tag, fix, and tag again.
+- **GoReleaser failed:** never move or re-create a tag that was pushed. Go's module proxy may already have cached it,
+  and `go install` would then get the old code or a checksum error.
+  - If the cause is outside the code (a token, the tap repo, a flaky runner), delete the partial GitHub Release and
+    re-run the workflow for the same tag from the Actions page.
+  - If the fix needs a code change, merge it and release the next patch or release candidate (`v1.0.1`, `v1.0.0-rc.2`).

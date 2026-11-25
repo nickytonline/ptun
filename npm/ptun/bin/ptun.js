@@ -36,8 +36,11 @@ const child = spawn(bin, process.argv.slice(2), { stdio: "inherit" });
 // Pass every signal on, so ptun cleans up its tunnel even when only this wrapper is signalled
 // (kill, concurrently, a process manager). On Ctrl-C ptun gets SIGINT twice, once from the terminal
 // and once from here; it ignores the second while it cleans up. Stay alive until ptun exits.
+// On Windows, child.kill() terminates the process outright instead of signalling it, so Ctrl-C is left to
+// the console, which delivers it to ptun directly.
 for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
   process.on(sig, () => {
+    if (process.platform === "win32" && sig === "SIGINT") return;
     if (child.exitCode === null && child.signalCode === null) child.kill(sig);
   });
 }
