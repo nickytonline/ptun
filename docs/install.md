@@ -103,10 +103,20 @@ docker run -d --name tunnel-broker --restart unless-stopped \
   tunnel-broker:local
 ```
 
-Then point the Pomerium route for `tunnels.example.com` at this container's port 8080. The example binds it to
-loopback, which suits Pomerium running on the same host. If Pomerium runs in a container, put both on a shared Docker
-network and drop `-p` entirely. Either way, keep the port closed to everything except Pomerium: the broker holds the
-full-admin shared secret. `GET /healthz` is unauthenticated and returns 200.
+How you wire the two together depends on where Pomerium runs:
+
+- **Pomerium on the same host.** The example binds port 8080 to loopback, so point the Pomerium route for
+  `tunnels.example.com` at `http://127.0.0.1:8080`. The broker still has to reach Pomerium's config API from inside
+  its container, where `127.0.0.1` is the container itself. Set `CONFIG_API_URLS` to an address the container can
+  reach, and make sure Pomerium's config API listens on that address rather than only on loopback.
+- **Pomerium in a container.** Put both containers on a shared Docker network: drop `-p` and add
+  `--network <net>` to the command above. Point the route at `http://tunnel-broker:8080` (the container name), and set
+  `CONFIG_API_URLS` to the Pomerium container's name, for example `https://pomerium:5443`. With the default
+  `CONFIG_API_TLS_VERIFY=false` the name doesn't need to match the certificate. If you turn verification on, the config
+  API certificate must cover whichever host name you put in `CONFIG_API_URLS`.
+
+Either way, keep port 8080 closed to everything except Pomerium: the broker holds the full-admin shared secret.
+`GET /healthz` is unauthenticated and returns 200.
 
 ### Kubernetes
 
