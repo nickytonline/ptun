@@ -286,7 +286,7 @@ func TestCreateWithSendsMCP(t *testing.T) {
 	var got syncBuf
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
-		got.Write(b)
+		_, _ = got.Write(b)
 		w.WriteHeader(http.StatusCreated)
 		_, _ = io.WriteString(w, `{"id":"abc123","url":"https://t-abc123.x.dev","mcp":true,"mcp_path":"/sse","email":"me@x.dev"}`)
 	}))
@@ -311,7 +311,7 @@ func TestAnnounceLiveMCP(t *testing.T) {
 	t.Parallel()
 	var out, copied syncBuf
 	tn := Tunnel{URL: "https://t-abc123.x.dev", MCP: true, MCPPath: "/mcp"}
-	announceLive(Options{Target: "localhost:3000", Out: &out, Clipboard: func(s string) bool { copied.Write([]byte(s)); return true }}, tn)
+	announceLive(Options{Target: "localhost:3000", Out: &out, Clipboard: func(s string) bool { _, _ = copied.Write([]byte(s)); return true }}, tn)
 	if copied.String() != "https://t-abc123.x.dev/mcp" {
 		t.Fatalf("clipboard %q", copied.String())
 	}
@@ -326,7 +326,7 @@ func TestAnnounceLiveMCP(t *testing.T) {
 func TestAnnounceLivePlain(t *testing.T) {
 	t.Parallel()
 	var out, copied syncBuf
-	announceLive(Options{Target: "localhost:3000", Out: &out, Clipboard: func(s string) bool { copied.Write([]byte(s)); return false }}, Tunnel{URL: "https://t-x.dev", Public: true})
+	announceLive(Options{Target: "localhost:3000", Out: &out, Clipboard: func(s string) bool { _, _ = copied.Write([]byte(s)); return false }}, Tunnel{URL: "https://t-x.dev", Public: true})
 	if copied.String() != "https://t-x.dev" || strings.Contains(out.String(), "copied to clipboard") || strings.Contains(out.String(), "MCP") ||
 		!strings.Contains(out.String(), "anyone with the link (public)") {
 		t.Fatalf("%q / %q", copied.String(), out.String())

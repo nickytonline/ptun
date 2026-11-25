@@ -2,12 +2,15 @@ module github.com/nickytonline/ptun
 
 go 1.27.1
 
+toolchain go1.27.4
+
 require (
 	connectrpc.com/connect v1.21.1
 	github.com/go-jose/go-jose/v3 v3.0.5
 	github.com/pomerium/pomerium/pkg/grpc/config v0.34.1
 	github.com/pomerium/sdk-go v0.0.10-0.20261110022632-86aa3a97e480
 	github.com/spf13/cobra v1.10.2
+	google.golang.org/protobuf v1.36.12
 )
 
 require (
@@ -37,5 +40,4 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20261026165753-2ffab32bce7e // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20261026165753-2ffab32bce7e // indirect
 	google.golang.org/grpc v1.86.0-dev // indirect
-	google.golang.org/protobuf v1.36.12 // indirect
 )

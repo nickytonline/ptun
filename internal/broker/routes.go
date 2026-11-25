@@ -54,7 +54,7 @@ type RouteStore interface {
 type Routes struct {
 	clients []routeClient
 	prefix  string
-	last    atomic.Int32
+	last    atomic.Int64
 }
 
 // NewRoutes builds a Routes over the given clients (one per config API endpoint)
@@ -89,12 +89,12 @@ func (r *Routes) try(ctx context.Context, fn func(routeClient) error) error {
 		idx := (start + i) % n
 		err := fn(r.clients[idx])
 		if err == nil {
-			r.last.Store(int32(idx))
+			r.last.Store(int64(idx))
 			return nil
 		}
 		// A definitive answer from the leader, or our own cancellation: stop.
 		if connect.CodeOf(err) == connect.CodeNotFound || ctx.Err() != nil {
-			r.last.Store(int32(idx))
+			r.last.Store(int64(idx))
 			return err
 		}
 		errs = append(errs, fmt.Errorf("endpoint %d: %w", idx, err))
