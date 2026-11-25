@@ -14,6 +14,9 @@
 set -euo pipefail
 
 EMAIL=${1:?usage: dev-broker.sh <your-pomerium-email>}
+: "${BASE_DOMAIN:?set BASE_DOMAIN, e.g. BASE_DOMAIN=example.com}"
+: "${SSH_HOST:?set SSH_HOST, e.g. SSH_HOST=ssh.example.com}"
+export BASE_DOMAIN SSH_HOST
 NAMESPACE=${NAMESPACE:-pomerium}
 LOCAL_PORT=${LOCAL_PORT:-15444} # not 15443, so it can run next to tf.sh
 HERE=$(cd "$(dirname "$0")" && pwd)
