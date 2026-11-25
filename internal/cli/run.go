@@ -32,8 +32,7 @@ func SSHArgs(t Tunnel, target string) []string {
 	}
 }
 
-// Options configures Run. It is a struct so flags (--allow, ...) can be added
-// later without changing call sites.
+// Options configures Run.
 type Options struct {
 	Target      string // already parsed host:port
 	Arg         string // what the user typed (for messages)
@@ -162,7 +161,7 @@ func Run(ctx context.Context, o Options) (int, error) {
 	tick := time.NewTicker(iv)
 	defer tick.Stop()
 
-	liveC := (<-chan struct{})(liveCh) // set to nil after it fires
+	liveC := (<-chan struct{})(liveCh) // set to nil once fired so select ignores it
 	announced := false
 	var waitErr error
 loop:
@@ -173,7 +172,7 @@ loop:
 				announced = true
 				announceLive(o, t)
 			}
-			liveC = nil // a nil channel never fires again
+			liveC = nil
 		case <-tick.C:
 			hctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			err := c.Heartbeat(hctx, t.ID)

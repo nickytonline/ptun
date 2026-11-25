@@ -12,9 +12,7 @@ import (
 func expected(aud string) *jwt.Expected { return &jwt.Expected{Audience: jwt.Audience{aud}} }
 
 // NewConfigClients builds one Config API client per URL, authenticated with the
-// base64 shared secret exactly like the Terraform provider (sdk.NewClient with
-// WithAPIToken). insecureSkipVerify mirrors tls_insecure_skip_verify in
-// terraform/pomerium-core/providers.tf.
+// base64 shared secret (sdk.NewClient with WithAPIToken).
 //
 // TODO: verify the config API certificate (derived from the shared secret via
 // tls_derive "*.pomerium-headless") instead of skipping verification.

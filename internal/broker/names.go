@@ -91,8 +91,7 @@ func EmailPolicy(email string) ([]byte, error) {
 	return []byte(fmt.Sprintf("allow:\n  and:\n    - email:\n        is: %s\n", q)), nil
 }
 
-// PublicPolicy returns the visitor PPL for a public tunnel, the same shape as
-// the homelab's Terraform `public` policy plus the creator: anyone may visit
+// PublicPolicy returns the visitor PPL for a public tunnel: anyone may visit
 // (accept), and CORS preflights are allowed. Emitted as JSON, which is valid
 // YAML, so the email is safely quoted.
 func PublicPolicy(email string) ([]byte, error) {

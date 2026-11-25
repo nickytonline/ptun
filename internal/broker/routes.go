@@ -19,7 +19,7 @@ import (
 var ErrNotManaged = errors.New("object is not managed by tunnel-broker")
 
 // routeClient is the subset of configconnect.ConfigServiceClient the broker
-// uses. Tests provide a fake.
+// uses.
 type routeClient interface {
 	CreateRoute(context.Context, *connect.Request[configpb.CreateRouteRequest]) (*connect.Response[configpb.CreateRouteResponse], error)
 	DeleteRoute(context.Context, *connect.Request[configpb.DeleteRouteRequest]) (*connect.Response[configpb.DeleteRouteResponse], error)
@@ -41,7 +41,7 @@ type RouteStore interface {
 	ListManaged(ctx context.Context) ([]*configpb.Route, error)
 	// FindByFrom returns every route (managed or not) whose from URL is from.
 	FindByFrom(ctx context.Context, from string) ([]*configpb.Route, error)
-	// DeleteOrphanPolicies deletes ephemeral:* policies for which keep returns false.
+	// DeleteOrphanPolicies deletes broker-owned policies for which keep returns false.
 	DeleteOrphanPolicies(ctx context.Context, keep func(*configpb.Policy) bool) (int, error)
 }
 
@@ -105,7 +105,7 @@ func (r *Routes) try(ctx context.Context, fn func(routeClient) error) error {
 // Create creates the tunnel's policy and then its route. Core ignores
 // Route.ppl_policies for routes stored through the config API; only
 // Route.policy_ids (Policy objects, compiled from source_ppl) are enforced.
-// The route name must carry the ephemeral: prefix.
+// The route must pass guard.
 func (r *Routes) Create(ctx context.Context, route *configpb.Route, ppl []byte) (routeID, policyID string, err error) {
 	if err := r.guard(route.GetName(), route.GetDescription()); err != nil {
 		return "", "", err
@@ -184,7 +184,7 @@ func (r *Routes) Delete(ctx context.Context, routeID, policyID string) error {
 	return r.deletePolicy(ctx, policyID)
 }
 
-// deletePolicy is the only policy deletion path; it checks the ephemeral: name.
+// deletePolicy is the only policy deletion path, so every policy delete passes guard.
 func (r *Routes) deletePolicy(ctx context.Context, policyID string) error {
 	return r.try(ctx, func(c routeClient) error {
 		got, err := c.GetPolicy(ctx, connect.NewRequest(&configpb.GetPolicyRequest{Id: policyID}))
@@ -205,7 +205,7 @@ func (r *Routes) deletePolicy(ctx context.Context, policyID string) error {
 	})
 }
 
-// DeleteOrphanPolicies deletes ephemeral:* policies for which keep returns false.
+// DeleteOrphanPolicies deletes broker-owned policies for which keep returns false.
 func (r *Routes) DeleteOrphanPolicies(ctx context.Context, keep func(*configpb.Policy) bool) (int, error) {
 	var pols []*configpb.Policy
 	err := r.try(ctx, func(c routeClient) error {

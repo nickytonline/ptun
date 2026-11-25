@@ -157,7 +157,7 @@ type CreateParams struct {
 	Name    string `json:"name,omitempty"`
 }
 
-// Create asks the broker for a tunnel to target.
+// Create is CreateWith with only a target and visibility.
 func (c *Client) Create(ctx context.Context, target string, public bool) (Tunnel, error) {
 	return c.CreateWith(ctx, CreateParams{Target: target, Public: public})
 }

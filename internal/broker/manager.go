@@ -81,8 +81,6 @@ type Manager struct {
 	leases map[string]*lease
 }
 
-// ttl is the lease length for l: short for stable links (one live tunnel per
-// link, so a crashed ptun must not hold it long).
 func (m *Manager) ttl(l *lease) time.Duration {
 	if l.stable {
 		return StableTTL
@@ -223,7 +221,7 @@ func ValidateMCPPath(p string) (string, error) {
 	return p, nil
 }
 
-// Create makes a new tunnel for email.
+// Create is CreateWith with only a target and visibility.
 func (m *Manager) Create(ctx context.Context, email, target string, public bool) (Tunnel, error) {
 	return m.CreateWith(ctx, email, CreateRequest{Target: target, Public: public})
 }
