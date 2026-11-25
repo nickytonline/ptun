@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"regexp"
 	"strconv"
@@ -61,15 +62,30 @@ func envSet(v string) bool {
 	return v != "" && v != "0" && v != "false"
 }
 
+// truecolor reports whether the terminal supports 24-bit color. COLORTERM is
+// the standard signal, but some terminals that support it don't set it (for
+// example over SSH, where COLORTERM is usually not passed through), so
+// terminals known to support it are recognized by TERM and TERM_PROGRAM too.
 func truecolor(getenv func(string) string) bool {
-	ct := strings.ToLower(getenv("COLORTERM"))
-	return ct == "truecolor" || ct == "24bit"
+	switch strings.ToLower(getenv("COLORTERM")) {
+	case "truecolor", "24bit":
+		return true
+	}
+	switch term := getenv("TERM"); {
+	case term == "xterm-kitty", term == "xterm-ghostty", term == "wezterm", strings.HasSuffix(term, "-direct"):
+		return true
+	}
+	switch getenv("TERM_PROGRAM") {
+	case "iTerm.app", "WezTerm", "ghostty", "vscode", "WarpTerminal":
+		return true
+	}
+	return false
 }
 
 var rgbSGR = regexp.MustCompile(`\x1b\[([34])8;2;(\d+);(\d+);(\d+)m`)
 
 // to256 rewrites 24-bit color codes to the nearest xterm 256-color entry,
-// for terminals that do not advertise truecolor support.
+// for terminals without truecolor support.
 func to256(s string) string {
 	return rgbSGR.ReplaceAllStringFunc(s, func(m string) string {
 		p := rgbSGR.FindStringSubmatch(m)
@@ -80,37 +96,55 @@ func to256(s string) string {
 	})
 }
 
-// cubeLevels are the channel values of the xterm 6x6x6 color cube (16-231).
-var cubeLevels = [6]int{0, 95, 135, 175, 215, 255}
+// xterm256Lab holds the CIELAB values of xterm colors 16-255: the 6x6x6 color
+// cube and the 24-step gray ramp. Colors 0-15 are left out because terminal
+// themes change them.
+var xterm256Lab = func() (t [240][3]float64) {
+	levels := [6]int{0, 95, 135, 175, 215, 255}
+	for i := range 216 {
+		t[i] = toLab(levels[i/36], levels[i/6%6], levels[i%6])
+	}
+	for i := range 24 {
+		v := 8 + 10*i
+		t[216+i] = toLab(v, v, v)
+	}
+	return t
+}()
 
-// xterm256 returns the closest xterm 256-color index to r, g, b, choosing
-// between the color cube and the 24-step gray ramp (232-255, 8 to 238).
+// xterm256 returns the xterm 256-color index that looks closest to r, g, b.
+// It compares in CIELAB rather than RGB, because matching each RGB channel
+// on its own shifts hues (a dark red-brown turns olive, for example).
 func xterm256(r, g, b int) int {
-	cr, cg, cb := cube(r), cube(g), cube(b)
-	cubeIdx := 16 + 36*cr + 6*cg + cb
-	cubeDist := dist(r, g, b, cubeLevels[cr], cubeLevels[cg], cubeLevels[cb])
-
-	gi := ((r+g+b)/3 - 8 + 5) / 10
-	gi = max(0, min(23, gi))
-	gv := 8 + 10*gi
-	if dist(r, g, b, gv, gv, gv) < cubeDist {
-		return 232 + gi
+	want := toLab(r, g, b)
+	best, bestDist := 0, math.Inf(1)
+	for i, c := range xterm256Lab {
+		dl, da, db := want[0]-c[0], want[1]-c[1], want[2]-c[2]
+		if d := dl*dl + da*da + db*db; d < bestDist {
+			best, bestDist = i, d
+		}
 	}
-	return cubeIdx
+	return 16 + best
 }
 
-func dist(r1, g1, b1, r2, g2, b2 int) int {
-	dr, dg, db := r1-r2, g1-g2, b1-b2
-	return dr*dr + dg*dg + db*db
-}
-
-// cube maps 0-255 to the nearest of the 6 xterm cube levels (0,95,135,175,215,255).
-func cube(v int) int {
-	if v < 48 {
-		return 0
+// toLab converts an sRGB color to CIELAB (D65 white point).
+func toLab(r, g, b int) [3]float64 {
+	lin := func(v int) float64 {
+		c := float64(v) / 255
+		if c <= 0.04045 {
+			return c / 12.92
+		}
+		return math.Pow((c+0.055)/1.055, 2.4)
 	}
-	if v < 115 {
-		return 1
+	rl, gl, bl := lin(r), lin(g), lin(b)
+	x := (0.4124*rl + 0.3576*gl + 0.1805*bl) / 0.95047
+	y := 0.2126*rl + 0.7152*gl + 0.0722*bl
+	z := (0.0193*rl + 0.1192*gl + 0.9505*bl) / 1.08883
+	f := func(t float64) float64 {
+		if t > 0.008856 {
+			return math.Cbrt(t)
+		}
+		return 7.787*t + 16.0/116
 	}
-	return (v - 35) / 40
+	fx, fy, fz := f(x), f(y), f(z)
+	return [3]float64{116*fy - 16, 500 * (fx - fy), 200 * (fy - fz)}
 }

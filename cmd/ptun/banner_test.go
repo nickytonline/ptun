@@ -112,14 +112,44 @@ func TestTo256(t *testing.T) {
 	if want := "\x1b[38;5;196m\x1b[48;5;16m▀"; got != want {
 		t.Errorf("to256 = %q, want %q", got, want)
 	}
-	// Dark grays go to the gray ramp, not the much lighter cube gray (59).
-	if got := xterm256(74, 52, 66); got != 238 {
-		t.Errorf("xterm256(74,52,66) = %d, want 238", got)
-	}
-	if got := xterm256(128, 128, 128); got != 244 {
-		t.Errorf("xterm256(128,128,128) = %d, want 244", got)
+	for _, c := range []struct {
+		name    string
+		r, g, b int
+		want    int
+	}{
+		{"exact gray", 128, 128, 128, 244},
+		{"dark nose gray goes to the gray ramp, not cube gray 59", 74, 52, 66, 237},
+		{"deep fur shadow stays red-brown, not olive 94", 0x93, 0x43, 0x2c, 131},
+		{"lens cyan", 0x3f, 0xf5, 0xf0, 87},
+	} {
+		if got := xterm256(c.r, c.g, c.b); got != c.want {
+			t.Errorf("%s: xterm256(%d,%d,%d) = %d, want %d", c.name, c.r, c.g, c.b, got, c.want)
+		}
 	}
 	if strings.Contains(to256(pomeranian), ";2;") {
 		t.Error("to256 left 24-bit codes in the banner")
+	}
+}
+
+func TestTruecolor(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		env  map[string]string
+		want bool
+	}{
+		{map[string]string{"COLORTERM": "truecolor"}, true},
+		{map[string]string{"COLORTERM": "24bit"}, true},
+		{map[string]string{"TERM": "xterm-kitty"}, true},
+		{map[string]string{"TERM": "xterm-ghostty"}, true},
+		{map[string]string{"TERM": "xterm-direct"}, true},
+		{map[string]string{"TERM_PROGRAM": "iTerm.app"}, true},
+		{map[string]string{"TERM_PROGRAM": "vscode"}, true},
+		{map[string]string{"TERM": "xterm-256color"}, false},
+		{map[string]string{"TERM_PROGRAM": "Apple_Terminal", "TERM": "xterm-256color"}, false},
+		{nil, false},
+	} {
+		if got := truecolor(env(c.env)); got != c.want {
+			t.Errorf("truecolor(%v) = %v, want %v", c.env, got, c.want)
+		}
 	}
 }
