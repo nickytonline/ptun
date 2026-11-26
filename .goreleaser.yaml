@@ -58,6 +58,10 @@ changelog:
 release:
   draft: false
   prerelease: auto
+  # The release already exists (published by hand, which triggers the workflow): upload the assets into it and keep
+  # the notes written there.
+  mode: keep-existing
+  replace_existing_artifacts: true # a re-run of a failed release overwrites what the first run uploaded
 
 homebrew_casks:
   - name: ptun

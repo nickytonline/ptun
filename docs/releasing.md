@@ -1,11 +1,23 @@
 # Releasing
 
-Push a `v*` tag and [`.github/workflows/release.yml`](../.github/workflows/release.yml) publishes everything:
+Releases follow the same flow as [pomerium/pomerium](https://github.com/pomerium/pomerium/blob/main/.github/workflows/release.yaml):
+you publish a GitHub Release, and [`.github/workflows/release.yml`](../.github/workflows/release.yml) builds and
+publishes everything into it.
 
-```bash
-git tag v0.2.0
-git push origin v0.2.0
-```
+1. **Dry run.** Actions → **release** → **Run workflow** on `main`, with **Dry run** checked (the default). It builds
+   every archive, package, the cask and the image as a snapshot, and runs `npm publish --dry-run`. Nothing is
+   published. A manual run with **Dry run** unchecked fails on purpose.
+2. **Draft the release.** Releases → **Draft a new release**. Type the new tag (`v0.2.0`, or `v0.2.0-rc.1` for a
+   release candidate) and choose **Create new tag on publish**, target `main`. Click **Generate release notes** and edit
+   them. Saving a draft doesn't create the tag or run anything.
+3. **Publish it.** GitHub creates the tag, and the `release: published` event starts the workflow. GoReleaser uploads
+   the archives, checksums and Linux packages into the release (keeping your notes), then pushes the cask and the
+   image, and the npm job publishes. The release has no binaries for the few minutes this takes.
+
+The same from a terminal: `gh release create v0.2.0 --target main --generate-notes` (add `--draft` to review first,
+then `gh release edit v0.2.0 --draft=false`).
+
+The workflow uses the GoReleaser version in `.tool-versions`, which mise also uses locally.
 
 | Channel | What gets published | Config |
 |---|---|---|
@@ -57,12 +69,14 @@ goreleaser check                          # validate .goreleaser.yaml
 
 ## If a release fails partway
 
-GoReleaser publishes the GitHub Release first, then the cask and image. npm runs in a separate job after it.
+GoReleaser uploads to the GitHub Release first, then pushes the cask and image. npm runs in a separate job after it.
 
-- **npm job failed:** fix the cause (usually a missing or mismatched trusted publisher) and re-run just that job from the Actions page. The script
-  skips packages whose version is already on npm, so a re-run finishes a partial publish.
-- **GoReleaser failed:** never move or re-create a tag that was pushed. Go's module proxy may already have cached it,
+- **npm job failed:** fix the cause (usually a missing or mismatched trusted publisher) and re-run just that job from
+  the Actions page. The script skips packages whose version is already on npm, so a re-run finishes a partial publish.
+- **GoReleaser failed:** never move, delete or re-create a published tag. Go's module proxy may already have cached it,
   and `go install` would then get the old code or a checksum error.
-  - If the cause is outside the code (a token, the tap repo, a flaky runner), delete the partial GitHub Release and
-    re-run the workflow for the same tag from the Actions page.
-  - If the fix needs a code change, merge it and release the next patch or release candidate (`v1.0.1`, `v1.0.0-rc.2`).
+  - If the cause is outside the code (a token, the tap repo, a flaky runner), fix it and **re-run the failed jobs** of
+    the same workflow run. It reuses the same release event; GoReleaser keeps the notes and replaces any assets the
+    first attempt uploaded.
+  - If the fix needs a code change, merge it and release the next patch or release candidate (`v0.2.1`,
+    `v0.2.0-rc.2`). Mark the broken release as a prerelease or edit its notes to point at the fix.

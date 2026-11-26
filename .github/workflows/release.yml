@@ -1,10 +1,19 @@
-# Publishes a release when a v* tag is pushed: GitHub Release (archives, checksums, deb/rpm/apk),
-# Homebrew cask, GHCR broker image, then npm. See docs/releasing.md.
+# Publishes a release when a GitHub Release is published (which creates its v* tag): archives, checksums and
+# deb/rpm/apk uploaded to that release, the Homebrew cask, the GHCR broker image, then npm. Run it by hand
+# (Actions -> release -> Run workflow) for a dry run: a snapshot build of everything with nothing published.
+# Same shape as pomerium/pomerium's release workflow. See docs/releasing.md.
 name: release
 
 on:
-  push:
-    tags: ["v*"]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run: snapshot build and npm publish --dry-run, nothing published"
+        required: true
+        default: true
+        type: boolean
 
 permissions:
   contents: read
@@ -37,11 +46,23 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # A real release only from a published GitHub Release, whose ref is its tag.
+      - name: Refuse a manual run that isn't a dry run
+        if: github.event_name == 'workflow_dispatch' && !inputs.dry_run
+        run: |
+          echo "::error::Publish a GitHub Release to release. Manual runs are dry runs only."
+          exit 1
+
+      # The same GoReleaser version as local runs (mise reads .tool-versions).
+      - name: Get GoReleaser version
+        id: goreleaser-version
+        run: echo "version=v$(awk '$1 == "goreleaser" {print $2}' .tool-versions)" >> "$GITHUB_OUTPUT"
+
       - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           distribution: goreleaser
-          version: "~> v2"
-          args: release --clean
+          version: ${{ steps.goreleaser-version.outputs.version }}
+          args: release --clean ${{ inputs.dry_run && '--snapshot' || '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
@@ -85,9 +106,14 @@ jobs:
       # NPM_TOKEN is only for the very first publish, before the packages exist and trusted publishing can be set up
       # for them. Delete the secret afterwards.
       - run: |
-          if [ -n "$NPM_TOKEN" ]; then
+          if [ -n "$NPM_TOKEN" ] && [ "$DRY_RUN" != true ]; then
             npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"
           fi
-          node scripts/npm-publish.mjs
+          if [ "$DRY_RUN" = true ]; then
+            node scripts/npm-publish.mjs --dry-run
+          else
+            node scripts/npm-publish.mjs
+          fi
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run }}
