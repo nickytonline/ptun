@@ -129,7 +129,10 @@ func run(log *slog.Logger) error {
 		return err
 	}
 	urls := configAPIURLs()
-	insecure := env("CONFIG_API_TLS_VERIFY", "false") != "true"
+	tlsOpts := broker.ConfigTLS{SkipVerify: env("CONFIG_API_TLS_VERIFY", "true") == "false", CAFile: env("CONFIG_API_CA_FILE", "")}
+	if tlsOpts.SkipVerify {
+		log.Warn("CONFIG_API_TLS_VERIFY=false: the config API certificate is NOT verified; the shared secret could be sent to an impostor")
+	}
 
 	brokerHost := env("BROKER_HOST", "")
 	var auth broker.Authenticator
@@ -155,7 +158,11 @@ func run(log *slog.Logger) error {
 	if err := broker.ValidatePrefix(cfg.RoutePrefix); err != nil {
 		return fmt.Errorf("ROUTE_PREFIX: %w", err)
 	}
-	routes := broker.NewRoutesWithPrefix(broker.NewConfigClients(urls, secret, insecure), cfg.RoutePrefix)
+	clients, err := broker.NewConfigClients(urls, secret, tlsOpts)
+	if err != nil {
+		return err
+	}
+	routes := broker.NewRoutesWithPrefix(clients, cfg.RoutePrefix)
 	m := broker.NewManager(cfg, routes, log)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
