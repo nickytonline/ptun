@@ -1,5 +1,5 @@
 # tunnel-broker: creates and deletes ephemeral:* Pomerium routes for ptun. See docs/install.md.
-# Replace the image and every example.com value. Only Pomerium should be able to reach this pod (NetworkPolicy).
+# Replace the image and every example.com value. networkpolicy.yaml (required) lets only Pomerium reach this pod.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -22,7 +22,7 @@ spec:
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: tunnel-broker
-          image: ghcr.io/nickytonline/tunnel-broker:CHANGE-ME   # a release version, e.g. 0.2.0 (docs/install.md)
+          image: ghcr.io/nickytonline/tunnel-broker:CHANGE-ME   # a release version, e.g. 0.1.0 (docs/install.md)
           ports: [{name: http, containerPort: 8080}]
           env:
             - name: SHARED_SECRET
