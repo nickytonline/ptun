@@ -21,8 +21,8 @@ Set these up first. The broker can't work around any of them.
    - The API is served on Core's `grpc_address`. That address must be reachable from the broker. Core defaults to
      loopback, which only a local port-forward can reach.
    - It has only been tested over HTTPS: `https://` URLs with the certificate derived from the shared secret
-     (`tls_derive`, `grpc_insecure: false`). The broker skips certificate verification by default (see
-     `CONFIG_API_TLS_VERIFY` below).
+     (`tls_derive`, `grpc_insecure: false`). The broker verifies that certificate against the CA it derives from the
+     same shared secret, so it needs no CA file (see `CONFIG_API_TLS_VERIFY` below).
    - With a clustered (Raft) databroker, only the leader answers. List every member in `CONFIG_API_URLS`, and the
      broker tries each in turn.
    - **The shared secret is full admin over Pomerium.** Anything that can reach the broker without going through
@@ -52,7 +52,8 @@ The broker is configured only through environment variables.
 |---|---|---|
 | `SHARED_SECRET` | (required) | Core's shared secret, base64, used as the config API token. |
 | `CONFIG_API_URLS` | (required) | Config API endpoints, comma-separated. Each call tries them in order, starting with the last one that worked. |
-| `CONFIG_API_TLS_VERIFY` | `false` | `true` verifies the config API certificate against the system roots. A certificate derived from the shared secret will fail that check, so leave it `false` for now (TODO in `internal/broker/client.go`). |
+| `CONFIG_API_TLS_VERIFY` | `true` | Verifies the config API certificate. A certificate derived from the shared secret (`tls_derive`) is accepted for any host name in `CONFIG_API_URLS`. Any other certificate must chain to the system roots or `CONFIG_API_CA_FILE` and match the host name. `false` skips the check and logs a warning: the broker would then send the full-admin shared secret to whatever answers. |
+| `CONFIG_API_CA_FILE` | (none) | A PEM bundle to trust for the config API, besides the system roots. Only needed when its certificate isn't derived from the shared secret and comes from a private CA. |
 | `BROKER_HOST` | (required) | The host of the broker's own Pomerium route. Sets the default `JWKS_URL` and `JWT_AUDIENCE`, so it is optional when both are set, and in dev mode (`DEV_AUTH_EMAIL`). |
 | `JWKS_URL` | `https://<BROKER_HOST>/.well-known/pomerium/jwks.json` | Where to fetch Pomerium's JWT signing keys. |
 | `JWT_AUDIENCE` | `<BROKER_HOST>` | Expected `aud` claim of `X-Pomerium-Jwt-Assertion`. |
@@ -120,9 +121,9 @@ How you wire the two together depends on where Pomerium runs:
   reach, and make sure Pomerium's config API listens on that address rather than only on loopback.
 - **Pomerium in a container.** Put both containers on a shared Docker network: drop `-p` and add
   `--network <net>` to the command above. Point the route at `http://tunnel-broker:8080` (the container name), and set
-  `CONFIG_API_URLS` to the Pomerium container's name, for example `https://pomerium:5443`. With the default
-  `CONFIG_API_TLS_VERIFY=false` the name doesn't need to match the certificate. If you turn verification on, the config
-  API certificate must cover whichever host name you put in `CONFIG_API_URLS`.
+  `CONFIG_API_URLS` to the Pomerium container's name, for example `https://pomerium:5443`. With `tls_derive` the name
+  doesn't need to match the certificate. With any other certificate, it must cover the host name you put in
+  `CONFIG_API_URLS`.
 
 Either way, keep port 8080 closed to everything except Pomerium: the broker holds the full-admin shared secret.
 `GET /healthz` is unauthenticated and returns 200.

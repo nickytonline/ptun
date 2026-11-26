@@ -6,16 +6,19 @@ toolchain go1.27.4
 
 require (
 	connectrpc.com/connect v1.21.1
+	filippo.io/keygen v1.0.0
 	github.com/go-jose/go-jose/v3 v3.0.5
 	github.com/mattn/go-isatty v0.0.24
 	github.com/pomerium/pomerium/pkg/grpc/config v0.34.1
 	github.com/pomerium/sdk-go v0.0.10-0.20261110022632-86aa3a97e480
 	github.com/spf13/cobra v1.10.2
+	golang.org/x/crypto v0.58.0
 	google.golang.org/protobuf v1.36.12
 )
 
 require (
 	cel.dev/expr v0.25.3 // indirect
+	filippo.io/bigmod v0.1.1-0.20260103110540-f8a47775ebe5 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 // indirect
@@ -33,7 +36,6 @@ require (
 	github.com/rs/zerolog v1.35.1 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect

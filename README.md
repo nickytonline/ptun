@@ -240,8 +240,8 @@ Headless HTTP API (`cmd/tunnel-broker`): `POST /api/tunnels`, `POST /api/tunnels
   cannot be created the policy is deleted.
 - Config API: Connect `ConfigService` via `sdk-go` with `SHARED_SECRET` (base64) as the API token, like the Pomerium
   Terraform provider. `CONFIG_API_URLS` lists the endpoints (with a clustered databroker only the Raft leader answers), and
-  each call tries them in order starting with the last that worked. TLS verification is skipped for now (the cert is derived from the shared secret);
-  `CONFIG_API_TLS_VERIFY=true` is reserved for the follow-up (TODO in `internal/broker/client.go`).
+  each call tries them in order starting with the last that worked. The broker verifies the config API certificate against
+  the CA Pomerium derives from the shared secret (`tls_derive`), or the system roots / `CONFIG_API_CA_FILE` for any other certificate.
 - Settings are environment variables; see [docs/install.md](docs/install.md#2-settings).
 
 ## What you see
