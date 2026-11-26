@@ -24,6 +24,7 @@ services:
 
   tunnel-broker:
     image: ghcr.io/nickytonline/tunnel-broker:0.1.0   # the version you're running, without the v
+    container_name: tunnel-broker   # fixed name, so `docker port tunnel-broker` (docs/install.md) finds it
     restart: unless-stopped
     # No `ports:`. Pomerium reaches it as http://tunnel-broker:8080 over the broker network.
     environment:
