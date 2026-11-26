@@ -100,32 +100,43 @@ docker build -t tunnel-broker:local .
 
 ### Docker
 
-```bash
-# SHARED_SECRET comes from your shell environment, so it isn't written on the command line.
-docker run -d --name tunnel-broker --restart unless-stopped \
-  -p 127.0.0.1:8080:8080 \
-  -e SHARED_SECRET \
-  -e CONFIG_API_URLS=https://pomerium.internal.example.com:5443 \
-  -e BROKER_HOST=tunnels.example.com \
-  -e BASE_DOMAIN=example.com \
-  -e SSH_HOST=ssh.example.com \
-  -e SSH_PORT=2200 \
-  ghcr.io/nickytonline/tunnel-broker:1.0.0  # the version you're running, without the v
-```
+There is no NetworkPolicy in Docker. Keep the broker reachable only from Pomerium with networks instead:
 
-How you wire the two together depends on where Pomerium runs:
+- **Never publish the broker on every interface** (`-p 8080:8080` or `ports: ["8080:8080"]`). Docker writes its own
+  iptables rules for published ports, which bypass host firewalls such as ufw and firewalld.
+- **Pomerium in a container (recommended):** use [`deploy/docker/compose.yaml`](../deploy/docker/compose.yaml). The
+  broker joins only a `broker` network that it shares with Pomerium and publishes no ports. Pomerium reaches it as
+  `http://tunnel-broker:8080`, and it reaches the config API as `https://pomerium:5443`. With `docker run`, the
+  equivalent is `docker network create broker`, then `--network broker` on the broker, `docker network connect broker
+  pomerium`, and no `-p` on the broker.
+- **Pomerium installed on the host:** publish to loopback only, so that only the host can reach it:
 
-- **Pomerium on the same host.** The example binds port 8080 to loopback, so point the Pomerium route for
-  `tunnels.example.com` at `http://127.0.0.1:8080`. The broker still has to reach Pomerium's config API from inside
-  its container, where `127.0.0.1` is the container itself. Set `CONFIG_API_URLS` to an address the container can
-  reach, and make sure Pomerium's config API listens on that address rather than only on loopback.
-- **Pomerium in a container.** Put both containers on a shared Docker network: drop `-p` and add
-  `--network <net>` to the command above. Point the route at `http://tunnel-broker:8080` (the container name), and set
-  `CONFIG_API_URLS` to the Pomerium container's name, for example `https://pomerium:5443`. With `tls_derive` the name
-  doesn't need to match the certificate. With any other certificate, it must cover the host name you put in
-  `CONFIG_API_URLS`.
+  ```bash
+  # SHARED_SECRET comes from your shell environment, so it isn't written on the command line.
+  docker run -d --name tunnel-broker --restart unless-stopped \
+    -p 127.0.0.1:8080:8080 \
+    -e SHARED_SECRET \
+    -e CONFIG_API_URLS=https://pomerium.internal.example.com:5443 \
+    -e BROKER_HOST=tunnels.example.com \
+    -e BASE_DOMAIN=example.com \
+    -e SSH_HOST=ssh.example.com \
+    -e SSH_PORT=2200 \
+    ghcr.io/nickytonline/tunnel-broker:0.1.0  # the version you're running, without the v
+  ```
 
-Either way, keep port 8080 closed to everything except Pomerium: the broker holds the full-admin shared secret.
+  Point the Pomerium route for `tunnels.example.com` at `http://127.0.0.1:8080`. Inside the container `127.0.0.1` is
+  the container itself, so set `CONFIG_API_URLS` to an address the container can reach, and make sure Pomerium's
+  config API listens on that address rather than only on loopback. Any process on the host can still reach the
+  broker, so prefer the container setup on shared hosts.
+
+`CONFIG_API_URLS` doesn't need to match the certificate's name when Pomerium uses `tls_derive`. With any other
+certificate, it must cover the host name you put in `CONFIG_API_URLS`.
+
+**Outbound traffic.** Docker can't limit it per port. To lock it down, either make the `broker` network
+`internal: true` and point `JWKS_URL` at an address of Pomerium on that network whose certificate the broker trusts,
+or add rules for the broker's address to the host's `DOCKER-USER` iptables chain. The broker needs DNS, the config API
+and the JWKS URL.
+
 `GET /healthz` is unauthenticated and returns 200.
 
 ### Kubernetes
@@ -139,12 +150,28 @@ placeholder (`shared-secret.yaml.example`) that `kubectl apply` skips:
 3. Put the shared secret in the Secret without committing it, for example:
    `kubectl -n <ns> create secret generic tunnel-broker --from-literal=SHARED_SECRET="$SHARED_SECRET"`.
    If the broker runs in Pomerium's namespace, it can reference Pomerium's existing Secret instead of a copy.
-4. `kubectl -n <ns> apply -f deploy/kubernetes/`
-5. Add a NetworkPolicy that admits only the Pomerium pods to port 8080, and let the broker reach the config API port on
-   every Pomerium member.
+4. Check the Pomerium pod labels and namespace in `networkpolicy.yaml` (`kubectl -n <ns> get pods --show-labels`). It
+   admits only Pomerium to port 8080, and lets the broker reach only DNS, the config API on 5443 and HTTPS for the JWKS.
+   It is required: the broker trusts Pomerium's identity header and holds the shared secret.
+5. `kubectl -n <ns> apply -f deploy/kubernetes/` (applies the NetworkPolicies too).
 6. Create the Pomerium route to `http://tunnel-broker.<ns>.svc.cluster.local:8080`.
 
 ## 4. Check it
+
+Check that only Pomerium can reach the broker. A NetworkPolicy does nothing if your CNI doesn't enforce it (plain
+Flannel doesn't), and published Docker ports bypass host firewalls:
+
+```bash
+# Kubernetes: from a pod that isn't Pomerium, this must time out. If it prints "ok", NetworkPolicies aren't enforced.
+kubectl -n <ns> run np-check --rm -i --restart=Never --image=busybox:1.37 -- \
+  wget -qO- -T 5 http://tunnel-broker:8080/healthz
+# Docker: on the Docker host, this must print nothing (or only 127.0.0.1:8080 for Pomerium on the host).
+docker port tunnel-broker
+# Docker: from another machine, this must fail to connect.
+curl -m 5 http://<docker-host-address>:8080/healthz
+```
+
+Then check the broker itself:
 
 ```bash
 kubectl -n <ns> logs deploy/tunnel-broker   # "tunnel-broker listening"; "adopt failed, retrying" means the config API isn't reachable yet

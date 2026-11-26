@@ -1,5 +1,5 @@
 # tunnel-broker: creates and deletes ephemeral:* Pomerium routes for ptun. See docs/install.md.
-# Replace the image and every example.com value. Only Pomerium should be able to reach this pod (NetworkPolicy).
+# Replace the image and every example.com value. networkpolicy.yaml (required) lets only Pomerium reach this pod.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

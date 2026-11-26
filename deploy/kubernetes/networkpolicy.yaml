@@ -1,0 +1,50 @@
+# Required. The broker trusts X-Pomerium-Jwt-Assertion and holds Pomerium's shared secret, so only Pomerium may reach it
+# (defense in depth: the broker also verifies every JWT against Pomerium's JWKS) and it may reach only what it needs.
+#
+# Assumes the broker runs in Pomerium's namespace and Pomerium's pods are labeled app.kubernetes.io/name=pomerium
+# (check with `kubectl -n <ns> get pods --show-labels`). If Pomerium runs in another namespace, add a namespaceSelector
+# next to each pomerium podSelector below.
+#
+# A NetworkPolicy only takes effect if the cluster's CNI enforces it (Calico, Cilium and most managed CNIs do; plain
+# Flannel does not). Check it after applying: docs/install.md, "Check it".
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tunnel-broker-ingress
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: tunnel-broker}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {app.kubernetes.io/name: pomerium}
+      ports:
+        - {protocol: TCP, port: 8080}
+---
+# Egress: DNS, Pomerium's config API (5443, every member) and HTTPS for the JWKS (JWKS_URL, by default
+# https://<BROKER_HOST>/.well-known/pomerium/jwks.json, which usually resolves to Pomerium's load balancer).
+# To tighten the HTTPS rule, replace 0.0.0.0/0 with your load balancer's address, or point JWKS_URL at an in-cluster
+# Pomerium address and drop the ipBlock rule.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tunnel-broker-egress
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/name: tunnel-broker}
+  policyTypes: [Egress]
+  egress:
+    - ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+    - to:
+        - podSelector:
+            matchLabels: {app.kubernetes.io/name: pomerium}
+      ports:
+        - {protocol: TCP, port: 5443}
+        - {protocol: TCP, port: 443}
+    - to:
+        - ipBlock: {cidr: 0.0.0.0/0}
+      ports:
+        - {protocol: TCP, port: 443}

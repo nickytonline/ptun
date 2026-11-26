@@ -1,0 +1,44 @@
+# Pomerium + tunnel-broker with Docker Compose. See docs/install.md ("Docker").
+#
+# The broker holds Pomerium's shared secret, so only Pomerium may reach it:
+#   - the broker joins only the `broker` network, which only Pomerium shares;
+#   - the broker publishes no ports. Never add `ports: ["8080:8080"]`: it listens on every interface, and Docker's
+#     iptables rules bypass host firewalls such as ufw and firewalld.
+#
+# Usage: put your Pomerium config next to this file as pomerium.yaml (it needs ssh_address ":2200", the
+# ssh_upstream_tunnel runtime flag, grpc_address ":5443", tls_derive and grpc_insecure: false; see docs/install.md),
+# export SHARED_SECRET (the same base64 value as Pomerium's shared_secret), replace the example.com values, then:
+#   docker compose up -d
+services:
+  pomerium:
+    image: pomerium/pomerium:v0.34.1
+    restart: unless-stopped
+    ports:
+      - "443:443"     # HTTPS, including the broker route https://tunnels.example.com -> http://tunnel-broker:8080
+      - "2200:2200"   # SSH, for ptun's ssh -R
+    environment:
+      - SHARED_SECRET
+    volumes:
+      - ./pomerium.yaml:/pomerium/config.yaml:ro
+    networks: [default, broker]
+
+  tunnel-broker:
+    image: ghcr.io/nickytonline/tunnel-broker:0.1.0   # the version you're running, without the v
+    restart: unless-stopped
+    # No `ports:`. Pomerium reaches it as http://tunnel-broker:8080 over the broker network.
+    environment:
+      - SHARED_SECRET
+      - CONFIG_API_URLS=https://pomerium:5443
+      - BROKER_HOST=tunnels.example.com
+      - BASE_DOMAIN=example.com
+      - SSH_HOST=ssh.example.com
+      - SSH_PORT=2200
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    networks: [broker]
+
+networks:
+  # Only Pomerium and the broker. Not `internal: true`: the broker fetches Pomerium's JWKS from
+  # https://tunnels.example.com, which goes out through the host. See docs/install.md to lock down outbound traffic.
+  broker: {}
